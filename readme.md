@@ -1,7 +1,7 @@
 # EMI-Mesh: Generating high-quality extracellular-membrane-intracellular meshes from imaging data
 
 
-![img](images/grand_challenge_mesh2.png)
+<img src='images/grand_challenge_mesh2.png' width='400'>
 
 This repo provides a pipeline to generate high quality tetrahedral meshes of brain tissue on the cellular scale suitable for numerical simulations.
 
