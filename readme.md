@@ -8,7 +8,7 @@ This repo provides a pipeline to generate high quality tetrahedral meshes of bra
 ## Features:
 
 - high quality meshes of dense reconstructions of the neuropil
-- includes both extracellular and intracellular space
+- both extracellular and intracellular space included
 - automated pipeline from segmentation to mesh
 - basic image processing steps included, to account for e.g. missing ECS from chemically fixated tissue
 
@@ -31,7 +31,7 @@ The output consists of the following directories:
 * raw: The downloaded segmentation as is in `.vtk` format, suitable for e.g. paraview
 * processed: The processed image in `.vtk` format
 * surfaces: The surfaces of the extracted cells in `.stl` format, again suitable for visualization with paraview or usage in other meshing software
-* meshes: The generated volumetric meshes in `.xdmf` format, containing labels for the extracellular space (label 1) and increasing integer vaules (2,..., N) for all cells contained. There is currently no mapping to the cell ids of the segmentation. The file `_facet.xdmf`contains facet marker, where the label *l* corresponds to the boundary between ECS and cell *l*. The outer boundaries are marked as `l + offset`, where `offset` is the next higher power of ten of the cell numbers (`offset=int(10 ** np.ceil(np.log10(N_cells)))`)
+* meshes: The generated volumetric meshes in `.xdmf` format, containing labels for the extracellular space (label 1) and increasing integer values (2,..., N) for all cells contained. There is currently no mapping to the cell ids of the segmentation. The file `_facet.xdmf`contains facet marker, where the label *l* corresponds to the boundary between ECS and cell *l*. The outer boundaries are marked as `l + offset`, where `offset` is the next higher power of ten of the cell numbers (`offset=int(10 ** np.ceil(np.log10(N_cells)))`)
 
 
 ## Limitations
