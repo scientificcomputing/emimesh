@@ -23,15 +23,15 @@ This repo provides a pipeline to generate high quality tetrahedral meshes of bra
 
 ## Reproducing results
 
-The workflow is based on [Snakemake](https://snakemake.readthedocs.io/en/stable/index.html). To generate meshes, install snakemake (e.g. `conda install -c bioconda snakemake`), modify the `config.yml` file in this repo and run snakemake `--cores all`. That's it!
-`Snakemake` will install all required dependencies (specified in `workflow/envs/environment.yml`) and orchastrate the jobs. It also support schedulers on HPC systems such as slurm.
+The workflow is based on [Snakemake](https://snakemake.readthedocs.io/en/stable/index.html). To generate meshes, install snakemake (e.g. `conda install -c bioconda snakemake`), modify the `config.yml` file in this repo and run `snakemake --cores all --use-conda`. That's it!
+`Snakemake` will install all required dependencies (specified in `workflow/envs/environment.yml`) and orchastrate the jobs. It also supports schedulers on HPC systems such as slurm.
 
 ## Output
 The output consists of the following directories:
 * raw: The downloaded segmentation as is in `.vtk` format, suitable for e.g. paraview
 * processed: The processed image in `.vtk` format
-* surfaces: The surfaces of the extracted cells in `.stl` format, again suitable for visualization with e.g. paraview
-* meshes: The generated volumetric meshes in `.xdmf` format, containing labels for the extracellular space (label 1) and increasing integer vaules (2,..., N) for all cells contained. There is currently no mapping to the cell ids of the segmentation. The file `_facet.xdmf`contains facet marker, where the label *l* corresponds to the boundary between ECS and cell *l*. The outer boundaries are marked as `l + offset`, where the `offset` the next higher power of ten of the cell numbers (`offset=int(10 ** np.ceil(np.log10(N_cells)))`)
+* surfaces: The surfaces of the extracted cells in `.stl` format, again suitable for visualization with paraview or usage in other meshing software
+* meshes: The generated volumetric meshes in `.xdmf` format, containing labels for the extracellular space (label 1) and increasing integer vaules (2,..., N) for all cells contained. There is currently no mapping to the cell ids of the segmentation. The file `_facet.xdmf`contains facet marker, where the label *l* corresponds to the boundary between ECS and cell *l*. The outer boundaries are marked as `l + offset`, where `offset` is the next higher power of ten of the cell numbers (`offset=int(10 ** np.ceil(np.log10(N_cells)))`)
 
 
 ## Limitations
