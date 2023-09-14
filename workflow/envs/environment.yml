@@ -1,0 +1,19 @@
+name: emimesh
+channels:
+  - conda-forge
+dependencies:
+  - fenics-dolfin # needed to compile
+  - python=3.9    # fTetWild (?)
+  - numpy
+  - matplotlib
+  - pyvista
+  - scikit-image
+  - meshio
+  - dask-image
+  - seaborn
+  - pip
+  - pip:
+    - pyacvd
+    - dufte
+    - cloud-volume
+    - git+https://github.com/MariusCausemann/wildmeshing-python.git

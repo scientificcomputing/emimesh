@@ -1,0 +1,29 @@
+cluster:
+  module load singularity-ce &&
+  mkdir -p logs/{rule} &&
+  sbatch
+    --partition={resources.partition}
+    --ntasks={resources.ntasks}
+    --nodes={resources.nodes}
+    --mem={resources.mem_mb}
+    --job-name={rule}-{wildcards}
+    --output=logs/{rule}/{wildcards}-%j.out
+    --time={resources.time}
+default-resources:
+  - partition=milanq,fpgaq,defq
+  - mem_mb=0
+  - time="30:00"
+  - ntasks=1
+  - nodes=1
+restart-times: 0
+max-jobs-per-second: 20
+max-status-checks-per-second: 1
+local-cores: 20
+latency-wait: 60
+jobs: 500
+keep-going: True
+rerun-incomplete: True
+printshellcmds: True
+scheduler: greedy
+use-conda: True
+rerun-triggers: mtime

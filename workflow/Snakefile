@@ -1,0 +1,123 @@
+configfile: "config.yml"
+
+# setup folder + filename structure for output:
+raw_str = "{dataset}_position-{position}_mip-{mip}_size-{size}"
+processed_str = ("ncells-{ncells}_expand-{expand}_smoothiter-{smoothiter}_" +
+                "smoothradius-{smoothradius}_shrink-{shrink}")
+mesh_str = "eps-{envelopsize}"
+
+raw_data_path = "results/raw/" + raw_str + "/raw.vtk"
+processed_data_path = "results/processed/{rawdata}/" + processed_str + "/processed.vtk"
+surfaces_dir = directory("results/surfaces/{rawdata}/{processing}/")
+csgtree = "results/surfaces/{rawdata}/{processing}/csgtree.json"
+mesh_path = "results/meshes/{rawdata}/{processing}/" + mesh_str + "/mesh.xdmf"
+mesh_tag_path = "results/meshes/{rawdata}/{processing}/" + mesh_str + "/facets.xdmf"
+cellsizeplot = "results/processed/{rawdata}/" + processed_str + "/cellsizes.png"
+meshstatistic = "results/processed/{rawdata}/" + processed_str + "/meshstatistic.yml"
+
+
+conda_env = "envs/environment.yml"
+ruleorder: generateSurfaceTags > generateMesh
+size_to_ntasks = lambda size: int((size/5000)**2)
+size_to_minutes = lambda size: int((size/5000)**2 * 20 + 30)
+
+rule all:
+    input:
+        expand(cellsizeplot,
+               rawdata=expand(raw_str, **config), **config),
+        expand(mesh_tag_path, rawdata=expand(raw_str, **config),
+               processing=expand(processed_str, **config), **config)
+
+rule downloadImageData:
+    output:
+        rawdata=raw_data_path
+    conda:
+        conda_env
+    params:
+        cloudpath=lambda wildcards: config["cloudpath"][wildcards.dataset]
+    shell:
+        """
+        python3 workflow/scripts/download_data.py --cloudpath {params.cloudpath} \
+        --position {wildcards.position} --mip {wildcards.mip} --size {wildcards.size} \
+        --output {output.rawdata}
+        """
+
+rule processImageData:
+    input:
+        rawdata="results/raw/{rawdata}/raw.vtk"
+    output:
+        meshstatistic,
+        outfile=processed_data_path,
+    conda:
+        conda_env
+    resources:
+        ntasks=lambda wildcards: size_to_ntasks(int(wildcards.rawdata.split("size-")[-1])),
+        time=lambda wildcards: size_to_minutes(int(wildcards.rawdata.split("size-")[-1]))
+    shell:
+        """
+        python3 workflow/scripts/process_image_data.py --infile {input.rawdata} \
+        --ncells {wildcards.ncells} --expand {wildcards.expand} \
+        --smoothiter {wildcards.smoothiter} --smoothradius {wildcards.smoothradius} \
+        --shrink {wildcards.shrink} --output {output.outfile} --nworkers {resources.ntasks}
+        """
+
+rule extractSurfaces:
+    input:
+        processeddata="results/processed/{rawdata}/{processing}/processed.vtk"
+    output:
+        outdir=surfaces_dir,
+        csgtree=csgtree
+    conda:
+        conda_env
+    shell:
+        """
+        python3 workflow/scripts/extract_surfaces.py --infile {input.processeddata} \
+        --outdir {output.outdir}
+        """
+
+rule generateMesh:
+    input:
+        csgtree=csgtree,
+    output:
+        outfile=mesh_path
+    conda:
+        conda_env
+    resources:
+        ntasks=lambda wildcards: size_to_ntasks(int(wildcards.rawdata.split("size-")[-1])),
+        time=lambda wildcards: size_to_minutes(int(wildcards.rawdata.split("size-")[-1]))
+    threads: lambda wildcards: size_to_ntasks(int(wildcards.rawdata.split("size-")[-1]))
+    shell:
+        """
+        python3 workflow/scripts/generate_mesh.py \
+        --csgtree {input.csgtree} --envelopsize {wildcards.envelopsize} --output {output.outfile} \
+        --max_threads {resources.ntasks}
+        """
+
+rule generateSurfaceTags:
+    input:
+        meshfile=mesh_path
+    output:
+        outfile=mesh_tag_path
+    conda:
+        conda_env
+    shell:
+        """
+        python3 workflow/scripts/generate_surface_tags.py \
+        --infile {input.meshfile} --output {output.outfile}
+        """
+
+    
+
+rule generateAnalysisPlot:
+    input:
+        infile=meshstatistic
+    output:
+        plotfile=cellsizeplot
+    conda:
+        conda_env
+    shell:
+        """
+        python3 workflow/scripts/generate_analysis_plots.py \
+        --infile {input.infile} --output {output.plotfile}
+        """
+
