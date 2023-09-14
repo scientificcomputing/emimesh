@@ -11,12 +11,14 @@ def np2pv(arr, resolution):
     grid[f"data"] = arr.flatten(order="F")
     return grid
 
+
 def get_cell_frequencies(img):
     # dask is slow, see: https://github.com/dask/dask/issues/10510
-    #cell_labels, cell_counts = dask.compute(da.unique(img, return_counts=True))[0]
+    # cell_labels, cell_counts = dask.compute(da.unique(img, return_counts=True))[0]
     cell_labels, cell_counts = np.unique(img, return_counts=True)
     indices = np.argsort(cell_counts)
     return cell_labels[indices], cell_counts[indices]
+
 
 def get_bounding_box(meshes, eps=0):
     max_p = -np.ones(3) * np.inf

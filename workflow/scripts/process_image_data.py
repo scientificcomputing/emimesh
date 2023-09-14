@@ -11,6 +11,7 @@ from pathlib import Path
 from utils import get_cell_frequencies, np2pv
 import dask
 
+
 def binary_smoothing(img, radius, dx, iter=1):
     ball = skim.ball(int(radius / dx))
     for i in range(iter):
@@ -90,12 +91,10 @@ if __name__ == "__main__":
     parser.add_argument(
         "--output", help="output filename", type=str, default="processeddata.xdmf"
     )
-    parser.add_argument(
-        "--nworkers", help="number of threads", type=int
-    )
+    parser.add_argument("--nworkers", help="number of threads", type=int)
 
     args = parser.parse_args()
-    dask.config.set(scheduler='threads', num_workers=args.nworkers)
+    dask.config.set(scheduler="threads", num_workers=args.nworkers)
     print(f"Using {args.nworkers} workers...")
 
     start = time.time()
@@ -122,7 +121,7 @@ if __name__ == "__main__":
         cois = cell_labels[-args.ncells :]
     else:
         cois = cell_labels
-        
+
     da_img = simplify_img(
         img,
         resolution,

@@ -10,11 +10,14 @@ from pathlib import Path
 from functools import reduce
 import operator
 
+
 def getFromDict(dataDict, mapList):
     return reduce(operator.getitem, mapList, dataDict)
 
+
 def setInDict(dataDict, mapList, value):
     getFromDict(dataDict, mapList[:-1])[mapList[-1]] = value
+
 
 def get_values(d):
     for v in d.values():
@@ -26,7 +29,11 @@ def get_values(d):
 
 def mesh_surfaces(csg_tree, eps, stop_quality, max_threads):
     tetra = wm.Tetrahedralizer(
-        epsilon=eps, edge_length_r=eps * 20, coarsen=True, stop_quality=stop_quality, max_threads=max_threads
+        epsilon=eps,
+        edge_length_r=eps * 20,
+        coarsen=True,
+        stop_quality=stop_quality,
+        max_threads=max_threads,
     )
     tetra.load_csg_tree(json.dumps(csg_tree))
     tetra.tetrahedralize()
@@ -39,15 +46,16 @@ def mesh_surfaces(csg_tree, eps, stop_quality, max_threads):
     )
     return volmesh
 
+
 def get_screenshot(mesh, filename):
     pv.start_xvfb()
     p = pv.Plotter(off_screen=True)
     p.add_mesh(mesh, cmap="rainbow", show_scalar_bar=False)
-    p.camera_position = 'yz'
+    p.camera_position = "yz"
     p.camera.azimuth = 225
     p.camera.elevation = 20
     p.screenshot(filename, transparent_background=True)
-    
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -70,9 +78,7 @@ if __name__ == "__main__":
         type=str,
     )
     parser.add_argument(
-        "--max_threads",
-        help="max number of threads",
-        type=int, default=0
+        "--max_threads", help="max number of threads", type=int, default=0
     )
 
     args = parser.parse_args()
@@ -86,8 +92,13 @@ if __name__ == "__main__":
     es = args.envelopsize
     shrunk_bbox = get_bounding_box([bbox], 1.5 * es)
     shrunk_bbox.save(shrunk_bbox_file)
-    setInDict(csgtree, ["left"]*(len(surfs) - 1), str(shrunk_bbox_file))
-    volmesh = mesh_surfaces(csgtree, eps=es / diag, stop_quality=args.stopquality, max_threads=args.max_threads)
+    setInDict(csgtree, ["left"] * (len(surfs) - 1), str(shrunk_bbox_file))
+    volmesh = mesh_surfaces(
+        csgtree,
+        eps=es / diag,
+        stop_quality=args.stopquality,
+        max_threads=args.max_threads,
+    )
     os.remove("__tracked_surface.stl")
     pv.save_meshio(args.output, volmesh)
 
