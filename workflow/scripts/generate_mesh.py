@@ -84,9 +84,9 @@ if __name__ == "__main__":
     args = parser.parse_args()
     with open(args.csgtree) as f:
         csgtree = json.load(f)
-    surfs = [surf for surf in get_values(csgtree) if "stl" in surf]
-    shrunk_bbox_file = Path(args.output).parent / "bbox.stl"
-    bboxfile = [s for s in surfs if "bbox.stl" in s][0]
+    surfs = [surf for surf in get_values(csgtree) if "ply" in surf]
+    shrunk_bbox_file = Path(args.output).parent / "bbox.ply"
+    bboxfile = [s for s in surfs if "bbox.ply" in s][0]
     bbox = pv.read(bboxfile)
     diag = np.sqrt(3) * bbox.volume ** (1 / 3)
     es = args.envelopsize
@@ -99,7 +99,7 @@ if __name__ == "__main__":
         stop_quality=args.stopquality,
         max_threads=args.max_threads,
     )
-    os.remove("__tracked_surface.stl")
+    os.remove("__tracked_surface.ply")
     pv.save_meshio(args.output, volmesh)
 
     screenshotfile = Path(args.output).parent / "mesh.png"

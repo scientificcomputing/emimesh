@@ -42,7 +42,7 @@ def extract_cell_meshes_pv(
         )
         if mesh is None:
             continue
-        p = f"{write_dir}/{obj_id}.stl"
+        p = f"{write_dir}/{obj_id}.ply"
         mesh.save(p)
         mesh_boxes.append(get_bounding_box([mesh], 0.0))
     return mesh_boxes
@@ -83,8 +83,8 @@ if __name__ == "__main__":
         mesh_reduction_factor=2,
         taubin_smooth_iter=1,
     )
-    mesh_files = [outdir / f"{cid}.stl" for cid in cois]
-    bbox_file = outdir / "bbox.stl"
+    mesh_files = [outdir / f"{cid}.ply" for cid in cois]
+    bbox_file = outdir / "bbox.ply"
     bbox = get_bounding_box(mboxes)
     bbox.save(bbox_file)
     csg_tree = create_csg_json_tree([str(f) for f in [bbox_file] + mesh_files])
