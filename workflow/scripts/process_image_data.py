@@ -146,5 +146,5 @@ if __name__ == "__main__":
     for k, v in mesh_statistics.items():
         mesh_statistics[k] = np.array(v).tolist()
 
-    with open(Path(args.output).parent / "meshstatistic.yml", "w") as mesh_stat_file:
+    with open(Path(args.output).parent / "imagetatistic.yml", "w") as mesh_stat_file:
         yaml.dump(mesh_statistics, mesh_stat_file)

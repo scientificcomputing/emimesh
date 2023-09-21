@@ -4,9 +4,9 @@ cloudpath :
 mip : 2
 position : "225182-107314-22000"
 size : [5000, 10000, 20000, 40000] 
-ncells : [5, 10, 50, 100, 500, 1000]
-smoothiter : [1,]
-smoothradius : 50
-expand : [1, 3, 5]
+ncells : [5, 10, 50, 100, 200]
+smoothiter : [2,]
+smoothradius : 40
+expand : [3]
 shrink : 1
-envelopsize : [2, 5]
+envelopsize : [20]

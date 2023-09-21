@@ -1,4 +1,7 @@
+import os
+from snakemake.remote.HTTP import RemoteProvider as HTTPRemoteProvider
 configfile: "config.yml"
+
 
 # setup folder + filename structure for output:
 raw_str = "{dataset}_position-{position}_mip-{mip}_size-{size}"
@@ -13,20 +16,57 @@ csgtree = "results/surfaces/{rawdata}/{processing}/csgtree.json"
 mesh_path = "results/meshes/{rawdata}/{processing}/" + mesh_str + "/mesh.xdmf"
 mesh_tag_path = "results/meshes/{rawdata}/{processing}/" + mesh_str + "/facets.xdmf"
 cellsizeplot = "results/processed/{rawdata}/" + processed_str + "/cellsizes.png"
-meshstatistic = "results/processed/{rawdata}/" + processed_str + "/meshstatistic.yml"
+imagestatistic = "results/processed/{rawdata}/" + processed_str + "/imagetatistic.yml"
+meshstatistic = "results/meshes/{rawdata}/{processing}/" + mesh_str + "/meshstatistic.yml"
+mesh_img = "results/meshes/{rawdata}/{processing}/" + mesh_str + "/mesh.png"
+zipped = "zipped/volume_ncells_{ncells}_size_{size}.zip"
+zipped_surf = "zipped/surface_ncells_{ncells}_size_{size}.zip"
 
 
 conda_env = "envs/environment.yml"
 ruleorder: generateSurfaceTags > generateMesh
-size_to_ntasks = lambda size: int((size/5000)**2)
-size_to_minutes = lambda size: int((size/5000)**2 * 20 + 30)
+size_to_ntasks =  lambda size: min(128, int((size/5000)**2))
+size_to_minutes = lambda size: int((size/5000)**2 * 60)
+
 
 rule all:
     input:
         expand(cellsizeplot,
                rawdata=expand(raw_str, **config), **config),
+        expand(csgtree, rawdata=expand(raw_str, **config),
+               processing=expand(processed_str, **config), **config),   
+        expand(mesh_img, rawdata=expand(raw_str, **config),
+               processing=expand(processed_str, **config), **config),  
+        expand(meshstatistic, rawdata=expand(raw_str, **config),
+               processing=expand(processed_str, **config), **config),
         expand(mesh_tag_path, rawdata=expand(raw_str, **config),
-               processing=expand(processed_str, **config), **config)
+               processing=expand(processed_str, **config), **config),
+        #expand(zipped, rawdata=expand(raw_str, **config),
+        #       processing=expand(processed_str, **config), **config),
+        #expand(zipped_surf, rawdata=expand(raw_str, **config),
+        #       processing=expand(processed_str, **config), **config),
+
+rule zipMesh:
+    output:
+        zipped
+    input:
+        ("results/meshes/minnie65_position-225182-107314-22000_mip-2_size-{size}/" + 
+         "ncells-{ncells}_expand-3_smoothiter-2_smoothradius-40_shrink-1/eps-4/")
+    shell:
+        """
+        zip -rj9 {output} {input}
+        """
+
+rule zipSurf:
+    output:
+        zipped_surf
+    input:
+        ("results/surfaces/minnie65_position-225182-107314-22000_mip-2_size-{size}/" + 
+         "ncells-{ncells}_expand-3_smoothiter-2_smoothradius-40_shrink-1/")
+    shell:
+        """
+        zip -rj9 {output} {input}
+        """
 
 rule downloadImageData:
     output:
@@ -46,7 +86,7 @@ rule processImageData:
     input:
         rawdata="results/raw/{rawdata}/raw.vtk"
     output:
-        meshstatistic,
+        imagestatistic,
         outfile=processed_data_path,
     conda:
         conda_env
@@ -67,6 +107,8 @@ rule extractSurfaces:
     output:
         outdir=surfaces_dir,
         csgtree=csgtree
+    resources:
+        time=lambda wildcards: size_to_minutes(int(wildcards.rawdata.split("size-")[-1])/10)
     conda:
         conda_env
     shell:
@@ -77,6 +119,7 @@ rule extractSurfaces:
 
 rule generateMesh:
     input:
+        "fTetWild/build/FloatTetwild_bin",
         csgtree=csgtree,
     output:
         outfile=mesh_path
@@ -97,20 +140,44 @@ rule generateSurfaceTags:
     input:
         meshfile=mesh_path
     output:
-        outfile=mesh_tag_path
+        mesh_tag_path
     conda:
         conda_env
     shell:
         """
         python3 workflow/scripts/generate_surface_tags.py \
-        --infile {input.meshfile} --output {output.outfile}
+        --infile {input.meshfile} --output {output}
         """
 
-    
+rule evaluateMesh:
+    input:
+        mesh_path
+    output:
+        meshstatistic
+    conda:
+        conda_env
+    shell:
+        """
+        python3 workflow/scripts/evaluate_mesh.py \
+        --infile {input} --output {output}
+        """
+
+rule takeScreenshot:
+    input:
+        mesh_path
+    output:
+        mesh_img
+    conda:
+        conda_env
+    shell:
+        """
+        xvfb-run -a python3 workflow/scripts/generate_screenshot.py \
+        --infile {input} --output {output}
+        """
 
 rule generateAnalysisPlot:
     input:
-        infile=meshstatistic
+        infile=imagestatistic
     output:
         plotfile=cellsizeplot
     conda:
@@ -119,5 +186,21 @@ rule generateAnalysisPlot:
         """
         python3 workflow/scripts/generate_analysis_plots.py \
         --infile {input.infile} --output {output.plotfile}
+        """
+
+HTTP = HTTPRemoteProvider()
+
+rule installFTetWild:
+    input:
+        HTTP.remote("github.com/wildmeshing/fTetWild/archive/refs/heads/master.zip",
+                    keep_local=False)
+    conda:
+        conda_env
+    output:
+        "fTetWild/build/FloatTetwild_bin",
+        directory("fTetWild")
+    shell:
+        """
+        unzip {input} -d fTetWild && cd fTetWild/build/ && cmake ../fTetWild-master && make -j
         """
 

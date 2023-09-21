@@ -1,4 +1,3 @@
-import wildmeshing as wm
 import json
 import meshio
 import pyvista as pv
@@ -9,7 +8,7 @@ from utils import get_bounding_box
 from pathlib import Path
 from functools import reduce
 import operator
-
+import time
 
 def getFromDict(dataDict, mapList):
     return reduce(operator.getitem, mapList, dataDict)
@@ -28,12 +27,14 @@ def get_values(d):
 
 
 def mesh_surfaces(csg_tree, eps, stop_quality, max_threads):
+    import wildmeshing as wm
     tetra = wm.Tetrahedralizer(
         epsilon=eps,
         edge_length_r=eps * 20,
         coarsen=True,
         stop_quality=stop_quality,
         max_threads=max_threads,
+        skip_simplify=False,
     )
     tetra.load_csg_tree(json.dumps(csg_tree))
     tetra.tetrahedralize()
@@ -46,15 +47,25 @@ def mesh_surfaces(csg_tree, eps, stop_quality, max_threads):
     )
     return volmesh
 
+def mesh_surfaces_os(csg_tree, eps, stop_quality, max_threads, outdir):
 
-def get_screenshot(mesh, filename):
-    pv.start_xvfb()
-    p = pv.Plotter(off_screen=True)
-    p.add_mesh(mesh, cmap="rainbow", show_scalar_bar=False)
-    p.camera_position = "yz"
-    p.camera.azimuth = 225
-    p.camera.elevation = 20
-    p.screenshot(filename, transparent_background=True)
+    csg_path = f"{outdir}/csgtree.json"
+    with open(csg_path, "w") as f:
+        f.write(json.dumps(csg_tree))
+    start = time.time()
+    os.system((f"fTetWild/build/FloatTetwild_bin --csg {csg_path} " + 
+                f"--max-threads {max_threads} -e {eps} " + 
+                f"--stop-energy {stop_quality} --level 2 " +
+                f"--output {outdir}/mesh.msh "))
+    print("mesh generation finished...")
+    mesh = pv.read(f"{outdir}/mesh.msh").clean()
+    mesh.cell_data.set_array(mesh["gmsh:physical"], "label", deep_copy=True)
+    mesh.cell_data.remove("gmsh:geometrical")
+    mesh.cell_data.remove("gmsh:physical")
+    mesh.cell_data.remove("color")
+    mesh.field_data['runtime'] = time.time() - start
+    mesh.field_data['threads'] = max_threads
+    return mesh
 
 
 if __name__ == "__main__":
@@ -70,7 +81,7 @@ if __name__ == "__main__":
         type=float,
     )
     parser.add_argument(
-        "--stopquality", help="fTetWild mesh quality score", type=float, default=10
+        "--stopquality", help="fTetWild mesh quality score", type=float, default=100
     )
     parser.add_argument(
         "--output",
@@ -85,7 +96,8 @@ if __name__ == "__main__":
     with open(args.csgtree) as f:
         csgtree = json.load(f)
     surfs = [surf for surf in get_values(csgtree) if "ply" in surf]
-    shrunk_bbox_file = Path(args.output).parent / "bbox.ply"
+    outdir = Path(args.output).parent
+    shrunk_bbox_file = outdir / "bbox.ply"
     bboxfile = [s for s in surfs if "bbox.ply" in s][0]
     bbox = pv.read(bboxfile)
     diag = np.sqrt(3) * bbox.volume ** (1 / 3)
@@ -93,15 +105,12 @@ if __name__ == "__main__":
     shrunk_bbox = get_bounding_box([bbox], 1.5 * es)
     shrunk_bbox.save(shrunk_bbox_file)
     setInDict(csgtree, ["left"] * (len(surfs) - 1), str(shrunk_bbox_file))
-    volmesh = mesh_surfaces(
+
+    volmesh = mesh_surfaces_os(
         csgtree,
         eps=es / diag,
         stop_quality=args.stopquality,
         max_threads=args.max_threads,
+        outdir=str(outdir)
     )
-    os.remove("__tracked_surface.ply")
     pv.save_meshio(args.output, volmesh)
-
-    screenshotfile = Path(args.output).parent / "mesh.png"
-
-    get_screenshot(volmesh.threshold(1.5), screenshotfile)

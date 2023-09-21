@@ -8,15 +8,22 @@ from pathlib import Path
 from utils import get_bounding_box
 
 
+def n_point_target(n, mesh_reduction_factor):
+    return 50 + n / mesh_reduction_factor
+
+
 def extract_surface(mask, grid, mesh_reduction_factor, taubin_smooth_iter):
     mesh = grid.contour([0.5], mask.flatten(order="F"), method="marching_cubes")
     surf = mesh.extract_geometry()
     n_points = surf.number_of_points
-    if n_points < 50:
-        return None
+    print(n_points)
     clus = pyacvd.Clustering(surf)
-    clus.cluster(int(n_points / mesh_reduction_factor))
-    surf = clus.create_mesh()
+    clus.cluster(n_point_target(n_points, mesh_reduction_factor))
+    try:
+        surf = clus.create_mesh()
+    except:
+        print("meshing failed")
+        return None
     surf.smooth_taubin(taubin_smooth_iter, inplace=True)
     surf.compute_normals(inplace=True, non_manifold_traversal=False)
     return surf
@@ -26,15 +33,15 @@ def extract_cell_meshes_pv(
     img,
     cell_labels,
     resolution,
-    mesh_reduction_factor,
-    taubin_smooth_iter,
+    mesh_reduction_factor=10,
+    taubin_smooth_iter=0,
     write_dir=None,
 ):
     padded = np.pad(img, 1)
     grid = pv.ImageData(dimensions=padded.shape, spacing=resolution, origin=(0, 0, 0))
     os.system(f"rm -rf {write_dir}/*")
     os.system(f"mkdir -p {write_dir}")
-    mesh_boxes = []
+    mesh_boxes = {}
     for obj_id in cell_labels:
         print(obj_id)
         mesh = extract_surface(
@@ -43,8 +50,44 @@ def extract_cell_meshes_pv(
         if mesh is None:
             continue
         p = f"{write_dir}/{obj_id}.ply"
-        mesh.save(p)
-        mesh_boxes.append(get_bounding_box([mesh], 0.0))
+        print(mesh.number_of_points)
+        pv.save_meshio(p, mesh)
+        mesh_boxes[obj_id] = get_bounding_box([mesh], 0.0)
+    return mesh_boxes
+
+
+def extract_cell_meshes_zmesh(
+    img,
+    cell_labels,
+    resolution,
+    max_error=None,
+    write_dir=None,
+):
+    from zmesh import Mesher
+
+    mesher = Mesher(resolution)
+    padded = np.pad(img, 1)
+    mesher.mesh(padded, close=False)
+
+    os.system(f"rm -rf {write_dir}/*")
+    os.system(f"mkdir -p {write_dir}")
+    mesh_boxes = {}
+
+    for obj_id in cell_labels:
+        print(obj_id)
+        mesh = mesher.get(
+            obj_id,
+            normals=True,
+            reduction_factor=1000,
+            max_error=max_error,
+            voxel_centered=True,
+        )
+        if mesh.vertices.shape[0] < 10:
+            continue
+        p = f"{write_dir}/{obj_id}.ply"
+        with open(p, "wb") as f:
+            f.write(mesh.to_ply())
+        mesh_boxes[obj_id] = get_bounding_box([mesh.vertices], 0.0)
     return mesh_boxes
 
 
@@ -79,13 +122,13 @@ if __name__ == "__main__":
         img,
         cois,
         resolution,
+        mesh_reduction_factor=10,
+        taubin_smooth_iter=2,
         write_dir=outdir,
-        mesh_reduction_factor=2,
-        taubin_smooth_iter=1,
     )
-    mesh_files = [outdir / f"{cid}.ply" for cid in cois]
+    mesh_files = [outdir / f"{cid}.ply" for cid in mboxes.keys()]
     bbox_file = outdir / "bbox.ply"
-    bbox = get_bounding_box(mboxes)
+    bbox = get_bounding_box(mboxes.values())
     bbox.save(bbox_file)
     csg_tree = create_csg_json_tree([str(f) for f in [bbox_file] + mesh_files])
 

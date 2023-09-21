@@ -12,7 +12,7 @@ cluster:
 default-resources:
   - partition=milanq,fpgaq,defq
   - mem_mb=0
-  - time="30:00"
+  - time="60:00"
   - ntasks=1
   - nodes=1
 restart-times: 0
