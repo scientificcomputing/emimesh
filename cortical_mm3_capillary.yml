@@ -2,11 +2,12 @@ dataset : "minnie65"
 cloudpath : 
   "minnie65": "precomputed://gs://iarpa_microns/minnie/minnie65/seg"
 mip : 2
-position : "225182-107314-22000"
-size : [5000, 10000, 20000, 40000] 
-ncells : [5, 10, 50, 100, 200]
+position : "244270-104850-19886"
+size : [10000] 
+ncells : [10,]#, 50, 100, 200]
 smoothiter : [2,]
 smoothradius : 40
 expand : [3]
 shrink : 1
-envelopsize : [20]
+envelopsize : [8]
+roi : [[864691136534887842, 10]]

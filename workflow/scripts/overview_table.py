@@ -61,9 +61,9 @@ def generate_overview_table(paramx_name, paramy_name, paramx, paramy,
     plt.savefig("overview_table.png", dpi=300, bbox_inches="tight")
 
 
-eps = 20
+eps = 8
 paramy =  [5, 10, 50, 100, 200]
-paramx =  [5000, 10000, 20000, 40000]
+paramx =  [5000, 10000, 20000, 40000, 80000]
 paramx_name = "size"
 paramy_name = "ncells"
 processed = "ncells-{ncells}_expand-3_smoothiter-2_smoothradius-40_shrink-1"

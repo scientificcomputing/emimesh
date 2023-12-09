@@ -6,6 +6,8 @@ import os
 import time
 dpi = 500
 
+
+import dufte
 def set_plotting_defaults():
     for k, v in dufte.style.items():
         if "color" in k:

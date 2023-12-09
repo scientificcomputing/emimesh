@@ -16,4 +16,5 @@ dependencies:
     - pyacvd
     - dufte
     - cloud-volume
-    - git+https://github.com/MariusCausemann/wildmeshing-python.git
+    - webknossos
+    #- git+https://github.com/MariusCausemann/wildmeshing-python.git

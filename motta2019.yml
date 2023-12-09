@@ -1,0 +1,12 @@
+dataset : "motta"
+cloudpath : 
+  "motta": "https://webknossos.org/datasets/MPI_Brain_Research/2012-09-28_ex145_07x2_ROI2017_connectome/view/"
+mip : [2]
+position : "2016-3595-2015"
+size : [5000, 10000, 20000] 
+ncells : [5, 10, 50, 100, 200, 1000]
+smoothiter : [0,]
+smoothradius : 0
+expand : [0]
+shrink : 0
+envelopsize : [8]

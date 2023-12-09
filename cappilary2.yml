@@ -1,0 +1,14 @@
+dataset : "minnie65"
+cloudpath : 
+  "minnie65": "precomputed://gs://iarpa_microns/minnie/minnie65/seg"
+mip : 1
+position : "232915-165336-20525"
+size : [5000] 
+ncells : [ 40 ]
+smoothiter : [2,]
+smoothradius : 40
+expand : [2]
+shrink : 1
+envelopsize : [4]
+roi : [864691136534887842]
+merge : ["864691136534887842-864691135476973891-864691135751005697-864691133070457251-864691136178683094-864691133070456483-864691133070450083"]

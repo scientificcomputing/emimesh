@@ -97,6 +97,12 @@ def create_csg_json_tree(surface_files):
         tree = {"operation": "union", "left": tree, "right": sf}
     return tree
 
+def create_balanced_csg_json_tree(surface_files):
+    n = len(surface_files)
+    if  n >= 2:
+        return {"operation": "union", "left": create_balanced_csg_json_tree(surface_files[:int(n/2)])
+                                    , "right": create_balanced_csg_json_tree(surface_files[int(n/2):])}
+    return surface_files[0]
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -108,14 +114,12 @@ if __name__ == "__main__":
     parser.add_argument(
         "--outdir", help="directory for output", type=str, default="output"
     )
-
     args = parser.parse_args()
     outdir = Path(args.outdir)
     img_grid = pv.read(args.infile)
     dims = img_grid.dimensions
     resolution = img_grid.spacing
     img = img_grid["data"].reshape(dims - np.array([1, 1, 1]), order="F")
-    img_grid = None
     cois = list(np.unique(img))
     cois.remove(0)
     mboxes = extract_cell_meshes_pv(
@@ -127,10 +131,25 @@ if __name__ == "__main__":
         write_dir=outdir,
     )
     mesh_files = [outdir / f"{cid}.ply" for cid in mboxes.keys()]
-    bbox_file = outdir / "bbox.ply"
-    bbox = get_bounding_box(mboxes.values())
-    bbox.save(bbox_file)
-    csg_tree = create_csg_json_tree([str(f) for f in [bbox_file] + mesh_files])
 
+    roi_file = outdir / "roi.ply"
+
+    if "roimask" in img_grid.array_names:
+        roimask = img_grid["roimask"].reshape(dims - np.array([1, 1, 1]), 
+                                              order="F")
+
+        roipadded = np.pad(roimask, 1)
+        grid = pv.ImageData(dimensions=roipadded.shape, spacing=resolution,
+                             origin=(0, 0, 0))
+        roi = extract_surface(roipadded, grid, 
+                              mesh_reduction_factor=10,
+                              taubin_smooth_iter=2)
+    else:
+        roi = get_bounding_box(mboxes.values())
+    roi.save(roi_file)
+    csg_tree = create_balanced_csg_json_tree([str(f) for f in mesh_files])
+    csg_tree = create_balanced_csg_json_tree([str(roi_file), csg_tree])
+
+    print(csg_tree)
     with open(outdir / "csgtree.json", "w") as outfile:
         outfile.write(json.dumps(csg_tree))

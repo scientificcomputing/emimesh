@@ -97,15 +97,10 @@ if __name__ == "__main__":
         csgtree = json.load(f)
     surfs = [surf for surf in get_values(csgtree) if "ply" in surf]
     outdir = Path(args.output).parent
-    shrunk_bbox_file = outdir / "bbox.ply"
-    bboxfile = [s for s in surfs if "bbox.ply" in s][0]
-    bbox = pv.read(bboxfile)
-    diag = np.sqrt(3) * bbox.volume ** (1 / 3)
+    roifile = [s for s in surfs if "roi.ply" in s][0]
+    roi = pv.read(roifile)
+    diag = np.sqrt(3) * roi.volume ** (1 / 3)
     es = args.envelopsize
-    shrunk_bbox = get_bounding_box([bbox], 1.5 * es)
-    shrunk_bbox.save(shrunk_bbox_file)
-    setInDict(csgtree, ["left"] * (len(surfs) - 1), str(shrunk_bbox_file))
-
     volmesh = mesh_surfaces_os(
         csgtree,
         eps=es / diag,

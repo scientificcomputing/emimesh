@@ -1,12 +1,13 @@
 import os
 from snakemake.remote.HTTP import RemoteProvider as HTTPRemoteProvider
-configfile: "config.yml"
+conda_env = "envs/environment.yml"
 
+#configfile: "cortical_mm3.yml"
 
 # setup folder + filename structure for output:
 raw_str = "{dataset}_position-{position}_mip-{mip}_size-{size}"
 processed_str = ("ncells-{ncells}_expand-{expand}_smoothiter-{smoothiter}_" +
-                "smoothradius-{smoothradius}_shrink-{shrink}")
+                "smoothradius-{smoothradius}_shrink-{shrink}_roi-{roi}_merge-{merge}")
 mesh_str = "eps-{envelopsize}"
 
 raw_data_path = "results/raw/" + raw_str + "/raw.vtk"
@@ -16,16 +17,15 @@ csgtree = "results/surfaces/{rawdata}/{processing}/csgtree.json"
 mesh_path = "results/meshes/{rawdata}/{processing}/" + mesh_str + "/mesh.xdmf"
 mesh_tag_path = "results/meshes/{rawdata}/{processing}/" + mesh_str + "/facets.xdmf"
 cellsizeplot = "results/processed/{rawdata}/" + processed_str + "/cellsizes.png"
-imagestatistic = "results/processed/{rawdata}/" + processed_str + "/imagetatistic.yml"
+imagestatistic = "results/processed/{rawdata}/" + processed_str + "/imagestatistic.yml"
 meshstatistic = "results/meshes/{rawdata}/{processing}/" + mesh_str + "/meshstatistic.yml"
 mesh_img = "results/meshes/{rawdata}/{processing}/" + mesh_str + "/mesh.png"
 zipped = "zipped/volume_ncells_{ncells}_size_{size}.zip"
 zipped_surf = "zipped/surface_ncells_{ncells}_size_{size}.zip"
 
 
-conda_env = "envs/environment.yml"
 ruleorder: generateSurfaceTags > generateMesh
-size_to_ntasks =  lambda size: min(128, int((size/5000)**2))
+size_to_ntasks =  lambda size: min(64, int((size/5000)**2))
 size_to_minutes = lambda size: int((size/5000)**2 * 60)
 
 
@@ -97,8 +97,12 @@ rule processImageData:
         """
         python3 workflow/scripts/process_image_data.py --infile {input.rawdata} \
         --ncells {wildcards.ncells} --expand {wildcards.expand} \
+        --roi {wildcards.roi} \
         --smoothiter {wildcards.smoothiter} --smoothradius {wildcards.smoothradius} \
-        --shrink {wildcards.shrink} --output {output.outfile} --nworkers {resources.ntasks}
+        --shrink {wildcards.shrink} \
+        --merge {wildcards.merge} \
+         --output {output.outfile} \
+        --nworkers {resources.ntasks}
         """
 
 rule extractSurfaces:
@@ -108,7 +112,7 @@ rule extractSurfaces:
         outdir=surfaces_dir,
         csgtree=csgtree
     resources:
-        time=lambda wildcards: size_to_minutes(int(wildcards.rawdata.split("size-")[-1])/10)
+        time=lambda wildcards: size_to_minutes(int(wildcards.rawdata.split("size-")[-1])/2)
     conda:
         conda_env
     shell:

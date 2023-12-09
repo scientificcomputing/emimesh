@@ -1,16 +1,18 @@
-from dask_image.ndmorph import binary_opening, binary_closing, binary_erosion
+from dask_image.ndmorph import binary_opening, binary_closing, binary_erosion, binary_dilation
 import dask.array as da
 import numpy as np
 from skimage.segmentation import expand_labels
 import skimage.morphology as skim
 import argparse
 import yaml
+import json
 import time
 import pyvista as pv
 from pathlib import Path
 from utils import get_cell_frequencies, np2pv
 import dask
-
+from dask_image.ndinterp import affine_transform
+import fastremap
 
 def binary_smoothing(img, radius, dx, iter=1):
     ball = skim.ball(int(radius / dx))
@@ -38,7 +40,7 @@ def label_erosion(img, label, radius, dx, background_value=0):
 
 
 def simplify_img(
-    img, resolution, cois, expand_voxel_dist, smoothing_iter, smoothing_radius, shink
+    img, resolution, cois, expand_voxel_dist, smoothing_iter, smoothing_radius, shrink
 ):
     dx = max(resolution)
     start = time.time()
@@ -63,13 +65,28 @@ def simplify_img(
 
     for cid in cois:
         img_da = label_erosion(
-            img_da, cid, background_value=0, radius=dx * shink, dx=dx
+            img_da, cid, background_value=0, radius=dx * shrink, dx=dx
         )
     img_da.compute()
     erosion_time = time.time()
 
     print(f"erosion time: { erosion_time - smooth_time} s")
     return img_da
+
+def set_boundary_value(img, value, extent=1):
+    img[0:extent,:,:] = value
+    img[-extent:,:,:] = value
+    img[:, 0:extent,:] = value
+    img[:, -extent:,:] = value
+    img[:,:, 0:extent] = value
+    img[:,:, -extent:] = value
+
+
+def get_roi_mask(img, roi_cells, dilate=5, iterations=4):
+    roi_mask = da.isin(img, roi_cells)
+    ball = skim.ball(dilate)
+    roi_mask = binary_dilation(roi_mask, ball, iterations=iterations)
+    return roi_mask
 
 
 if __name__ == "__main__":
@@ -91,6 +108,12 @@ if __name__ == "__main__":
     parser.add_argument(
         "--output", help="output filename", type=str, default="processeddata.xdmf"
     )
+    parser.add_argument("--roi", nargs='*', 
+                        help="specify region of interest by cell id")
+    
+    parser.add_argument("--cells", nargs='*', 
+                        help="specify cell ids to be included")
+    parser.add_argument('--merge', type=str)
     parser.add_argument("--nworkers", help="number of threads", type=int)
 
     args = parser.parse_args()
@@ -98,16 +121,47 @@ if __name__ == "__main__":
     print(f"Using {args.nworkers} workers...")
 
     start = time.time()
-
     imggrid = pv.read(args.infile)
     dims = imggrid.dimensions
     resolution = imggrid.spacing
-    img = imggrid["data"].reshape(dims - np.array([1, 1, 1]), order="F")
-    da_img = da.from_array(img)
+    img, remapping = fastremap.renumber(imggrid["data"], in_place=True)
+    img = img.reshape(dims - np.array([1, 1, 1]), order="F")
+    
+
+    dx = 16
+    scale = np.diag([dx / r for r in resolution] + [1])
+
+    new_dims = [int(d * r / dx) for d,r in zip(dims, resolution)]
+    print(scale)
+    print(new_dims)
+    isotropic_img = affine_transform(img, scale,
+                                     output_shape=new_dims,
+                                     order=0)
+    img = np.array(isotropic_img)
+    assert img.sum() > 0
+    
+    if args.merge is not None:
+        cells_to_merge = [remapping[int(cid)] for cid in args.merge.split("-")]
+        print(f"merging cells: {cells_to_merge}")
+        img[np.isin(img, cells_to_merge)] = cells_to_merge[0]
+
+    if args.roi is not None:
+        roi_cells = [remapping[int(cid)] for cid in args.roi]
+        print(f"using mask of the following cells: {roi_cells}")
+        roimask = get_roi_mask(img, roi_cells, dilate=5, iterations=3)
+        img[roimask==0] = 0
+        set_boundary_value(roimask, 0, extent=5)
+        roimask = binary_erosion(roimask, skim.ball(1))
+        assert roimask.sum() > 0
+    else:
+        roimask = None
+
+    np2pv(img, [dx]*3).save("resampledroi.vtk")
 
     load = time.time()
     print(f"load data time: {load - start} s")
     cell_labels, cell_counts = get_cell_frequencies(img)
+    print(cell_labels)
     freq_time = time.time()
     print(f"get cell frequency time: {freq_time - load} s")
 
@@ -118,6 +172,7 @@ if __name__ == "__main__":
         original_cell_counts=cell_counts,
     )
     if args.ncells < len(cell_labels):
+        #if args.cells is not None:
         cois = cell_labels[-args.ncells :]
     else:
         cois = cell_labels
@@ -133,8 +188,12 @@ if __name__ == "__main__":
     )
     proc_time = time.time()
     print(f"total processing time: {proc_time - freq_time} s")
+    img = np.array(da_img)
+    #island_threshold = 64
+    #img = skim.remove_small_objects(img, island_threshold)
 
-    imggrid = np2pv(np.array(da_img), mesh_statistics["resolution"])
+    imggrid = np2pv(img, [dx]*3,
+                     roimask=np.array(roimask) if roimask is not None else None)
     imggrid.save(args.output)
     save_time = time.time()
     print(f"saving time: {save_time - proc_time} s")
@@ -142,9 +201,10 @@ if __name__ == "__main__":
     cell_labels, cell_counts = get_cell_frequencies(imggrid["data"])
     mesh_statistics["cell_labels"] = cell_labels
     mesh_statistics["cell_counts"] = cell_counts
+    mesh_statistics["mapping"] = remapping
 
     for k, v in mesh_statistics.items():
         mesh_statistics[k] = np.array(v).tolist()
 
-    with open(Path(args.output).parent / "imagetatistic.yml", "w") as mesh_stat_file:
+    with open(Path(args.output).parent / "imagestatistic.yml", "w") as mesh_stat_file:
         yaml.dump(mesh_statistics, mesh_stat_file)
