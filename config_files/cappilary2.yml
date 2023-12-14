@@ -1,0 +1,21 @@
+name : "cappilary2"
+fixed : 
+  raw:
+    cloudpath: "precomputed://gs://iarpa_microns/minnie/minnie65/seg"
+    position : "337376-138765-22519"
+  processing:
+    roi : "864691136534887842"
+    merge : "864691136534887842-864691133995183345-864691134924323841-864691135197974302-864691135501607490-864691135686365079-864691135954940163"
+raw:
+  mip : 1
+  size : [5000] 
+processing:
+  ncells : [ 100 ]
+  smoothiter : [2,]
+  smoothradius : 40
+  expand : [2]
+  shrink : 1
+  dx : 40
+  roidilate : "8-6"
+meshing:
+  envelopsize : [8]
