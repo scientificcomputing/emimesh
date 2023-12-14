@@ -110,11 +110,12 @@ if __name__ == "__main__":
     )
     parser.add_argument("--roi", nargs='*', 
                         help="specify region of interest by cell id")
-    
+    parser.add_argument("--roidilate", help="dilate roi", type=str, default="0-0")
     parser.add_argument("--cells", nargs='*', 
                         help="specify cell ids to be included")
     parser.add_argument('--merge', type=str)
     parser.add_argument("--nworkers", help="number of threads", type=int)
+    parser.add_argument("--dx", help="target resolution", type=int, default=None)
 
     args = parser.parse_args()
     dask.config.set(scheduler="threads", num_workers=args.nworkers)
@@ -127,18 +128,16 @@ if __name__ == "__main__":
     img, remapping = fastremap.renumber(imggrid["data"], in_place=True)
     img = img.reshape(dims - np.array([1, 1, 1]), order="F")
     
-
-    dx = 16
+    dx = max(resolution)
+    if args.dx:
+        dx = args.dx
     scale = np.diag([dx / r for r in resolution] + [1])
 
     new_dims = [int(d * r / dx) for d,r in zip(dims, resolution)]
-    print(scale)
-    print(new_dims)
     isotropic_img = affine_transform(img, scale,
                                      output_shape=new_dims,
                                      order=0)
     img = np.array(isotropic_img)
-    assert img.sum() > 0
     
     if args.merge is not None:
         cells_to_merge = [remapping[int(cid)] for cid in args.merge.split("-")]
@@ -148,15 +147,14 @@ if __name__ == "__main__":
     if args.roi is not None:
         roi_cells = [remapping[int(cid)] for cid in args.roi]
         print(f"using mask of the following cells: {roi_cells}")
-        roimask = get_roi_mask(img, roi_cells, dilate=5, iterations=3)
+        roidilate, rioiter = [int(i) for i in args.roidilate.split("-")]
+        roimask = get_roi_mask(img, roi_cells, dilate=roidilate, iterations=rioiter)
         img[roimask==0] = 0
         set_boundary_value(roimask, 0, extent=5)
         roimask = binary_erosion(roimask, skim.ball(1))
         assert roimask.sum() > 0
     else:
         roimask = None
-
-    np2pv(img, [dx]*3).save("resampledroi.vtk")
 
     load = time.time()
     print(f"load data time: {load - start} s")

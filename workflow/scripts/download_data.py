@@ -66,6 +66,9 @@ if __name__ == "__main__":
     parser.add_argument(
         "--output", help="output filename", type=str, default="data.xdmf"
     )
+    parser.add_argument(
+        "--dataset", help="dataset name", type=str, default="data"
+    )
     args = parser.parse_args()
 
     position = args.position.split("-")

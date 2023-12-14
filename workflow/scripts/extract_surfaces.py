@@ -7,7 +7,36 @@ import argparse
 from pathlib import Path
 from utils import get_bounding_box
 
+from pyvista.core import _vtk_core as _vtk
 
+from pyvista.core.filters import _get_output, _update_alg
+from pyvista.core.utilities.helpers import generate_plane
+
+def clip_closed_surface(surf, normal='x', origin=None, tolerance=1e-06, inplace=False, progress_bar=False):
+
+    plane = generate_plane(normal, origin)
+    collection = _vtk.vtkPlaneCollection()
+    collection.AddItem(plane)
+
+    alg = _vtk.vtkClipClosedSurface()
+    alg.SetGenerateFaces(True)
+    alg.SetInputDataObject(surf)
+    alg.SetTolerance(tolerance)
+    alg.SetClippingPlanes(collection)
+    _update_alg(alg, progress_bar, 'Clipping Closed Surface')
+    result = _get_output(alg)
+    if inplace:
+        surf.copy_from(result, deep=False)
+    else:
+        return result
+
+
+def clip_closed_box(surf, box):
+    box.compute_normals(inplace=True)
+    centers = box.cell_centers().points
+    for midp, n in zip(centers, box.cell_normals):
+        clip_closed_surface(surf, normal=-n, origin=midp, inplace=True)
+        
 def n_point_target(n, mesh_reduction_factor):
     return 50 + n / mesh_reduction_factor
 
@@ -16,7 +45,6 @@ def extract_surface(mask, grid, mesh_reduction_factor, taubin_smooth_iter):
     mesh = grid.contour([0.5], mask.flatten(order="F"), method="marching_cubes")
     surf = mesh.extract_geometry()
     n_points = surf.number_of_points
-    print(n_points)
     clus = pyacvd.Clustering(surf)
     clus.cluster(n_point_target(n_points, mesh_reduction_factor))
     try:
@@ -29,13 +57,14 @@ def extract_surface(mask, grid, mesh_reduction_factor, taubin_smooth_iter):
     return surf
 
 
-def extract_cell_meshes_pv(
+def extract_cell_meshes(
     img,
     cell_labels,
     resolution,
     mesh_reduction_factor=10,
     taubin_smooth_iter=0,
     write_dir=None,
+    roisurf=None,
 ):
     padded = np.pad(img, 1)
     grid = pv.ImageData(dimensions=padded.shape, spacing=resolution, origin=(0, 0, 0))
@@ -51,45 +80,17 @@ def extract_cell_meshes_pv(
             continue
         p = f"{write_dir}/{obj_id}.ply"
         print(mesh.number_of_points)
-        pv.save_meshio(p, mesh)
-        mesh_boxes[obj_id] = get_bounding_box([mesh], 0.0)
+        if roisurf is not None:
+            p_tight = f"{write_dir}/{obj_id}_wt.ply"
+            pv.save_meshio(p_tight, mesh)
+            #mesh = mesh.clip_surface(roisurf)
+            #mesh = mesh.clip_box(roisurf.bounds, invert=False)
+            clip_closed_box(mesh, roisurf)
+        print(f"saving : {p}")
+        if mesh.number_of_points > 10:
+            pv.save_meshio(p, mesh)
+            mesh_boxes[obj_id] = get_bounding_box([mesh], 0.0)
     return mesh_boxes
-
-
-def extract_cell_meshes_zmesh(
-    img,
-    cell_labels,
-    resolution,
-    max_error=None,
-    write_dir=None,
-):
-    from zmesh import Mesher
-
-    mesher = Mesher(resolution)
-    padded = np.pad(img, 1)
-    mesher.mesh(padded, close=False)
-
-    os.system(f"rm -rf {write_dir}/*")
-    os.system(f"mkdir -p {write_dir}")
-    mesh_boxes = {}
-
-    for obj_id in cell_labels:
-        print(obj_id)
-        mesh = mesher.get(
-            obj_id,
-            normals=True,
-            reduction_factor=1000,
-            max_error=max_error,
-            voxel_centered=True,
-        )
-        if mesh.vertices.shape[0] < 10:
-            continue
-        p = f"{write_dir}/{obj_id}.ply"
-        with open(p, "wb") as f:
-            f.write(mesh.to_ply())
-        mesh_boxes[obj_id] = get_bounding_box([mesh.vertices], 0.0)
-    return mesh_boxes
-
 
 def create_csg_json_tree(surface_files):
     tree = {"operation": "union", "left": surface_files[0], "right": surface_files[1]}
@@ -122,34 +123,36 @@ if __name__ == "__main__":
     img = img_grid["data"].reshape(dims - np.array([1, 1, 1]), order="F")
     cois = list(np.unique(img))
     cois.remove(0)
-    mboxes = extract_cell_meshes_pv(
+
+    if "roimask" in img_grid.array_names:
+        roimask = img_grid["roimask"].reshape(dims - np.array([1, 1, 1]), 
+                                              order="F")
+        roipadded = np.pad(roimask, 1)
+        grid = pv.ImageData(dimensions=roipadded.shape, spacing=resolution,
+                            origin=(0, 0, 0))
+        roisurf = extract_surface(roipadded, grid, 
+                                mesh_reduction_factor=10,
+                                taubin_smooth_iter=2)
+        roicutsurf = None
+    else:
+        roisurf = get_bounding_box([img_grid], resolution[0]*5 + img_grid.length*0.002)
+        roicutsurf = roisurf
+
+    roi_file = outdir / "roi.ply"
+
+    mboxes = extract_cell_meshes(
         img,
         cois,
         resolution,
         mesh_reduction_factor=10,
         taubin_smooth_iter=2,
         write_dir=outdir,
+        roisurf=roicutsurf
     )
     mesh_files = [outdir / f"{cid}.ply" for cid in mboxes.keys()]
-
-    roi_file = outdir / "roi.ply"
-
-    if "roimask" in img_grid.array_names:
-        roimask = img_grid["roimask"].reshape(dims - np.array([1, 1, 1]), 
-                                              order="F")
-
-        roipadded = np.pad(roimask, 1)
-        grid = pv.ImageData(dimensions=roipadded.shape, spacing=resolution,
-                             origin=(0, 0, 0))
-        roi = extract_surface(roipadded, grid, 
-                              mesh_reduction_factor=10,
-                              taubin_smooth_iter=2)
-    else:
-        roi = get_bounding_box(mboxes.values())
-    roi.save(roi_file)
+    roisurf.save(roi_file)
     csg_tree = create_balanced_csg_json_tree([str(f) for f in mesh_files])
     csg_tree = create_balanced_csg_json_tree([str(roi_file), csg_tree])
 
-    print(csg_tree)
     with open(outdir / "csgtree.json", "w") as outfile:
         outfile.write(json.dumps(csg_tree))

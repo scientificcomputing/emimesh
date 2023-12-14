@@ -56,6 +56,7 @@ def mesh_surfaces_os(csg_tree, eps, stop_quality, max_threads, outdir):
     os.system((f"fTetWild/build/FloatTetwild_bin --csg {csg_path} " + 
                 f"--max-threads {max_threads} -e {eps} " + 
                 f"--stop-energy {stop_quality} --level 2 " +
+                #"--use-input-for-wn " + 
                 f"--output {outdir}/mesh.msh "))
     print("mesh generation finished...")
     mesh = pv.read(f"{outdir}/mesh.msh").clean()
@@ -81,7 +82,7 @@ if __name__ == "__main__":
         type=float,
     )
     parser.add_argument(
-        "--stopquality", help="fTetWild mesh quality score", type=float, default=100
+        "--stopquality", help="fTetWild mesh quality score", type=float, default=10
     )
     parser.add_argument(
         "--output",

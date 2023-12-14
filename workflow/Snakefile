@@ -5,42 +5,48 @@ conda_env = "envs/environment.yml"
 #configfile: "cortical_mm3.yml"
 
 # setup folder + filename structure for output:
-raw_str = "{dataset}_position-{position}_mip-{mip}_size-{size}"
-processed_str = ("ncells-{ncells}_expand-{expand}_smoothiter-{smoothiter}_" +
-                "smoothradius-{smoothradius}_shrink-{shrink}_roi-{roi}_merge-{merge}")
-mesh_str = "eps-{envelopsize}"
+raw_str = "_".join([k + "+{" +k + "}" for k in config["raw"].keys()])
+processed_str = "_".join([k + "+{" +k + "}" for k in config["processing"].keys()])
+mesh_str = "_".join([k + "+{" +k + "}" for k in config["meshing"].keys()])
 
-raw_data_path = "results/raw/" + raw_str + "/raw.vtk"
-processed_data_path = "results/processed/{rawdata}/" + processed_str + "/processed.vtk"
+raw_data_path = "results/raw/{rawdata}/raw.vtk"
+processed_data_path = "results/processed/{rawdata}/{processing}/processed.vtk"
 surfaces_dir = directory("results/surfaces/{rawdata}/{processing}/")
 csgtree = "results/surfaces/{rawdata}/{processing}/csgtree.json"
-mesh_path = "results/meshes/{rawdata}/{processing}/" + mesh_str + "/mesh.xdmf"
-mesh_tag_path = "results/meshes/{rawdata}/{processing}/" + mesh_str + "/facets.xdmf"
-cellsizeplot = "results/processed/{rawdata}/" + processed_str + "/cellsizes.png"
-imagestatistic = "results/processed/{rawdata}/" + processed_str + "/imagestatistic.yml"
-meshstatistic = "results/meshes/{rawdata}/{processing}/" + mesh_str + "/meshstatistic.yml"
-mesh_img = "results/meshes/{rawdata}/{processing}/" + mesh_str + "/mesh.png"
+mesh_path = "results/meshes/{rawdata}/{processing}/{meshing}/mesh.xdmf"
+mesh_tag_path = "results/meshes/{rawdata}/{processing}/{meshing}/facets.xdmf"
+cellsizeplot = "results/processed/{rawdata}/{processing}/cellsizes.png"
+imagestatistic = "results/processed/{rawdata}/{processing}/imagestatistic.yml"
+meshstatistic = "results/meshes/{rawdata}/{processing}/{meshing}/meshstatistic.yml"
+mesh_img = "results/meshes/{rawdata}/{processing}/{meshing}/mesh.png"
 zipped = "zipped/volume_ncells_{ncells}_size_{size}.zip"
 zipped_surf = "zipped/surface_ncells_{ncells}_size_{size}.zip"
 
 
 ruleorder: generateSurfaceTags > generateMesh
-size_to_ntasks =  lambda size: min(64, int((size/5000)**2))
-size_to_minutes = lambda size: int((size/5000)**2 * 60)
+size_to_ntasks =  lambda size: min(16, int((size/2500)**2))
+size_to_minutes = lambda size: int((size/5000)**2 * 200)
 
+def filename2options(fn):
+    cmd = ""
+    pairs = fn.split("_")
+    for p in pairs:
+        k,v = p.split("+")
+        cmd+= f"--{k} {v} "
+    return cmd
+
+
+rd = expand(raw_str, **config["raw"])
+pd = expand(processed_str, **config["processing"])
+md = expand(mesh_str, **config["meshing"])
 
 rule all:
     input:
-        expand(cellsizeplot,
-               rawdata=expand(raw_str, **config), **config),
-        expand(csgtree, rawdata=expand(raw_str, **config),
-               processing=expand(processed_str, **config), **config),   
-        expand(mesh_img, rawdata=expand(raw_str, **config),
-               processing=expand(processed_str, **config), **config),  
-        expand(meshstatistic, rawdata=expand(raw_str, **config),
-               processing=expand(processed_str, **config), **config),
-        expand(mesh_tag_path, rawdata=expand(raw_str, **config),
-               processing=expand(processed_str, **config), **config),
+        expand(cellsizeplot,rawdata=rd,processing=pd),
+        expand(mesh_img, rawdata=rd,processing=pd, meshing=md),  
+        #expand(meshstatistic, rawdata=expand(raw_str, **flatconf),
+        #       processing=expand(processed_str, **flatconf), **flatconf),
+        expand(mesh_tag_path,rawdata=rd,processing=pd, meshing=md),
         #expand(zipped, rawdata=expand(raw_str, **config),
         #       processing=expand(processed_str, **config), **config),
         #expand(zipped_surf, rawdata=expand(raw_str, **config),
@@ -74,11 +80,12 @@ rule downloadImageData:
     conda:
         conda_env
     params:
-        cloudpath=lambda wildcards: config["cloudpath"][wildcards.dataset]
+        cloudpath=lambda wildcards: config["cloudpath"]["adress"],
+        options= lambda wildcards: filename2options(wildcards.rawdata)
     shell:
         """
         python3 workflow/scripts/download_data.py --cloudpath {params.cloudpath} \
-        --position {wildcards.position} --mip {wildcards.mip} --size {wildcards.size} \
+        {params.options} \
         --output {output.rawdata}
         """
 
@@ -91,17 +98,15 @@ rule processImageData:
     conda:
         conda_env
     resources:
-        ntasks=lambda wildcards: size_to_ntasks(int(wildcards.rawdata.split("size-")[-1])),
-        time=lambda wildcards: size_to_minutes(int(wildcards.rawdata.split("size-")[-1]))
+        ntasks=lambda wildcards: size_to_ntasks(int(wildcards.rawdata.split("size+")[-1])),
+        time=lambda wildcards: size_to_minutes(int(wildcards.rawdata.split("size+")[-1]))
+    params:
+        options=lambda wildcards: filename2options(wildcards.processing)
     shell:
         """
         python3 workflow/scripts/process_image_data.py --infile {input.rawdata} \
-        --ncells {wildcards.ncells} --expand {wildcards.expand} \
-        --roi {wildcards.roi} \
-        --smoothiter {wildcards.smoothiter} --smoothradius {wildcards.smoothradius} \
-        --shrink {wildcards.shrink} \
-        --merge {wildcards.merge} \
-         --output {output.outfile} \
+        {params.options} \
+        --output {output.outfile} \
         --nworkers {resources.ntasks}
         """
 
@@ -112,7 +117,7 @@ rule extractSurfaces:
         outdir=surfaces_dir,
         csgtree=csgtree
     resources:
-        time=lambda wildcards: size_to_minutes(int(wildcards.rawdata.split("size-")[-1])/2)
+        time=lambda wildcards: size_to_minutes(int(wildcards.rawdata.split("size+")[-1])/2)
     conda:
         conda_env
     shell:
@@ -130,13 +135,17 @@ rule generateMesh:
     conda:
         conda_env
     resources:
-        ntasks=lambda wildcards: size_to_ntasks(int(wildcards.rawdata.split("size-")[-1])),
-        time=lambda wildcards: size_to_minutes(int(wildcards.rawdata.split("size-")[-1]))
-    threads: lambda wildcards: size_to_ntasks(int(wildcards.rawdata.split("size-")[-1]))
+        ntasks=lambda wildcards: size_to_ntasks(int(wildcards.rawdata.split("size+")[-1])),
+        time=lambda wildcards: size_to_minutes(int(wildcards.rawdata.split("size+")[-1]))
+    threads: lambda wildcards: size_to_ntasks(int(wildcards.rawdata.split("size+")[-1]))
+    params:
+        options=lambda wildcards: filename2options(wildcards.meshing)
     shell:
         """
         python3 workflow/scripts/generate_mesh.py \
-        --csgtree {input.csgtree} --envelopsize {wildcards.envelopsize} --output {output.outfile} \
+        --csgtree {input.csgtree} \
+        {params.options} \
+        --output {output.outfile} \
         --max_threads {resources.ntasks}
         """
 
