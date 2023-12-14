@@ -47,7 +47,7 @@ if __name__ == "__main__":
         "--cloudpath",
         help="path to cloud data",
         type=str,
-        default="precomputed://gs://iarpa_microns/minnie/minnie65/seg",
+        #default="precomputed://gs://iarpa_microns/minnie/minnie65/seg",
     )
     parser.add_argument("--mip", help="resolution (0 is highest)", type=int, default=0)
     parser.add_argument(
@@ -66,9 +66,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--output", help="output filename", type=str, default="data.xdmf"
     )
-    parser.add_argument(
-        "--dataset", help="dataset name", type=str, default="data"
-    )
+
     args = parser.parse_args()
 
     position = args.position.split("-")
