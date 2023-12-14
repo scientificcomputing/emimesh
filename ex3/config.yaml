@@ -10,7 +10,7 @@ cluster:
     --output=logs/{rule}/{wildcards}-%j.out
     --time={resources.time}
 default-resources:
-  - partition=milanq,fpgaq,defq
+  - partition=milanq,fpgaq
   - mem_mb=0
   - time="60:00"
   - ntasks=1
