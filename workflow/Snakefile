@@ -1,5 +1,6 @@
 import os
 from snakemake.remote.HTTP import RemoteProvider as HTTPRemoteProvider
+import yaml
 conda_env = "envs/environment.yml"
 
 #configfile: "cortical_mm3.yml"
@@ -8,19 +9,27 @@ conda_env = "envs/environment.yml"
 raw_str = "_".join([k + "+{" +k + "}" for k in config["raw"].keys()])
 processed_str = "_".join([k + "+{" +k + "}" for k in config["processing"].keys()])
 mesh_str = "_".join([k + "+{" +k + "}" for k in config["meshing"].keys()])
+name = config["name"]
 
-raw_data_path = "results/raw/{rawdata}/raw.vtk"
-processed_data_path = "results/processed/{rawdata}/{processing}/processed.vtk"
-surfaces_dir = directory("results/surfaces/{rawdata}/{processing}/")
-csgtree = "results/surfaces/{rawdata}/{processing}/csgtree.json"
-mesh_path = "results/meshes/{rawdata}/{processing}/{meshing}/mesh.xdmf"
-mesh_tag_path = "results/meshes/{rawdata}/{processing}/{meshing}/facets.xdmf"
-cellsizeplot = "results/processed/{rawdata}/{processing}/cellsizes.png"
-imagestatistic = "results/processed/{rawdata}/{processing}/imagestatistic.yml"
-meshstatistic = "results/meshes/{rawdata}/{processing}/{meshing}/meshstatistic.yml"
-mesh_img = "results/meshes/{rawdata}/{processing}/{meshing}/mesh.png"
+raw_dir = "results/{name}/raw/{rawdata}/"
+processed_dir = "results/{name}/processed/{rawdata}/{processing}/"
+surf_dir = "results/{name}/surfaces/{rawdata}/{processing}/"
+mesh_dir = "results/{name}/meshes/{rawdata}/{processing}/{meshing}/"
+
+raw_data_path = raw_dir + "raw.vtk"
+
+processed_data_path = processed_dir + "processed.vtk"
+csgtree = surf_dir + "csgtree.json"
+cellsizeplot = processed_dir + "cellsizes.png"
+imagestatistic = processed_dir + "imagestatistic.yml"
+
+mesh_path = mesh_dir + "mesh.xdmf"
+mesh_tag_path = mesh_dir + "facets.xdmf"
+meshstatistic = mesh_dir + "meshstatistic.yml"
+mesh_img = mesh_dir + "mesh.png"
 zipped = "zipped/volume_ncells_{ncells}_size_{size}.zip"
 zipped_surf = "zipped/surface_ncells_{ncells}_size_{size}.zip"
+surfaces_dir = directory(surf_dir)
 
 
 ruleorder: generateSurfaceTags > generateMesh
@@ -35,6 +44,13 @@ def filename2options(fn):
         cmd+= f"--{k} {v} "
     return cmd
 
+def name2options(name, step):
+    with open(f"config_files/{name}.yml") as infile:
+        options = yaml.load(infile, Loader=yaml.FullLoader)["fixed"][step]
+    cmd = ""
+    for k,v in options.items():
+        cmd+= f"--{k} {v} "
+    return cmd
 
 rd = expand(raw_str, **config["raw"])
 pd = expand(processed_str, **config["processing"])
@@ -42,11 +58,11 @@ md = expand(mesh_str, **config["meshing"])
 
 rule all:
     input:
-        expand(cellsizeplot,rawdata=rd,processing=pd),
-        expand(mesh_img, rawdata=rd,processing=pd, meshing=md),  
+        expand(cellsizeplot,rawdata=rd,processing=pd, name=name),
+        expand(mesh_img, rawdata=rd,processing=pd, meshing=md, name=name),  
         #expand(meshstatistic, rawdata=expand(raw_str, **flatconf),
         #       processing=expand(processed_str, **flatconf), **flatconf),
-        expand(mesh_tag_path,rawdata=rd,processing=pd, meshing=md),
+        #expand(mesh_tag_path,rawdata=rd,processing=pd, meshing=md),
         #expand(zipped, rawdata=expand(raw_str, **config),
         #       processing=expand(processed_str, **config), **config),
         #expand(zipped_surf, rawdata=expand(raw_str, **config),
@@ -80,18 +96,18 @@ rule downloadImageData:
     conda:
         conda_env
     params:
-        cloudpath=lambda wildcards: config["cloudpath"]["adress"],
-        options= lambda wildcards: filename2options(wildcards.rawdata)
+        options=lambda wildcards: filename2options(wildcards.rawdata),
+        fopt=lambda wildcards: name2options(wildcards.name, "raw")
     shell:
         """
-        python3 workflow/scripts/download_data.py --cloudpath {params.cloudpath} \
-        {params.options} \
+        python3 workflow/scripts/download_data.py \
+        {params.options} {params.fopt} \
         --output {output.rawdata}
         """
 
 rule processImageData:
     input:
-        rawdata="results/raw/{rawdata}/raw.vtk"
+        rawdata=raw_data_path
     output:
         imagestatistic,
         outfile=processed_data_path,
@@ -101,18 +117,19 @@ rule processImageData:
         ntasks=lambda wildcards: size_to_ntasks(int(wildcards.rawdata.split("size+")[-1])),
         time=lambda wildcards: size_to_minutes(int(wildcards.rawdata.split("size+")[-1]))
     params:
-        options=lambda wildcards: filename2options(wildcards.processing)
+        options=lambda wildcards: filename2options(wildcards.processing),
+        fopt=lambda wildcards: name2options(wildcards.name, "processing")
     shell:
         """
         python3 workflow/scripts/process_image_data.py --infile {input.rawdata} \
-        {params.options} \
+        {params.options} {params.fopt} \
         --output {output.outfile} \
         --nworkers {resources.ntasks}
         """
 
 rule extractSurfaces:
     input:
-        processeddata="results/processed/{rawdata}/{processing}/processed.vtk"
+        processeddata=processed_data_path
     output:
         outdir=surfaces_dir,
         csgtree=csgtree
