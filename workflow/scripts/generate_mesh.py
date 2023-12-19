@@ -102,6 +102,7 @@ if __name__ == "__main__":
     roi = pv.read(roifile)
     diag = np.sqrt(3) * roi.volume ** (1 / 3)
     es = args.envelopsize
+    csgtree = {"operation":"intersection","right":csgtree, "left":roifile}
     volmesh = mesh_surfaces_os(
         csgtree,
         eps=es / diag,
