@@ -145,12 +145,12 @@ if __name__ == "__main__":
         cois,
         resolution,
         mesh_reduction_factor=10,
-        taubin_smooth_iter=2,
+        taubin_smooth_iter=10,
         write_dir=outdir,
         roisurf=outerbox
     )
 
-    mesh_files = [outdir / f"{cid}.ply" for cid in mboxes.keys()]
+    mesh_files = [outdir / f"{cid}_wt.ply" for cid in mboxes.keys()]
     roisurf.save(roi_file)
     csg_tree = create_balanced_csg_json_tree([str(f) for f in mesh_files])
     csg_tree = create_balanced_csg_json_tree([str(roi_file), csg_tree])

@@ -33,8 +33,8 @@ surfaces_dir = directory(surf_dir)
 
 
 ruleorder: generateSurfaceTags > generateMesh
-size_to_ntasks =  lambda size: min(16, int((size/2500)**2))
-size_to_minutes = lambda size: int((size/5000)**2 * 200)
+size_to_ntasks =  lambda size: min(16, int((size/5000)**2 + 1))
+size_to_minutes = lambda size: int((size/5000)**2 * 300 + 5)
 
 def filename2options(fn):
     cmd = ""
@@ -46,7 +46,7 @@ def filename2options(fn):
 
 def name2options(name, step):
     with open(f"config_files/{name}.yml") as infile:
-        options = yaml.load(infile, Loader=yaml.FullLoader)["fixed"][step]
+        options = yaml.load(infile, Loader=yaml.FullLoader)["fixed"].get(step, {})
     cmd = ""
     for k,v in options.items():
         cmd+= f"--{k} {v} "
@@ -60,6 +60,7 @@ rule all:
     input:
         expand(cellsizeplot,rawdata=rd,processing=pd, name=name),
         expand(mesh_img, rawdata=rd,processing=pd, meshing=md, name=name),  
+        expand(mesh_tag_path, rawdata=rd,processing=pd, meshing=md, name=name),  
         #expand(meshstatistic, rawdata=expand(raw_str, **flatconf),
         #       processing=expand(processed_str, **flatconf), **flatconf),
         #expand(mesh_tag_path,rawdata=rd,processing=pd, meshing=md),
@@ -112,10 +113,12 @@ rule processImageData:
         imagestatistic,
         outfile=processed_data_path,
     conda:
-        conda_env
+        "envs/pycle_env.yml"
     resources:
         ntasks=lambda wildcards: size_to_ntasks(int(wildcards.rawdata.split("size+")[-1])),
-        time=lambda wildcards: size_to_minutes(int(wildcards.rawdata.split("size+")[-1]))
+        time=lambda wildcards: size_to_minutes(int(wildcards.rawdata.split("size+")[-1])),
+        gpus=1,
+        partition="dgx2q,hgx2q"
     params:
         options=lambda wildcards: filename2options(wildcards.processing),
         fopt=lambda wildcards: name2options(wildcards.name, "processing")
@@ -173,6 +176,8 @@ rule generateSurfaceTags:
         mesh_tag_path
     conda:
         conda_env
+    resources:
+        time="120:00"
     shell:
         """
         python3 workflow/scripts/generate_surface_tags.py \

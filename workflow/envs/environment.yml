@@ -2,13 +2,14 @@ name: emimesh
 channels:
   - conda-forge
 dependencies:
-  - fenics-dolfin # needed to compile
-  - python=3.9    # fTetWild (?)
+  - python=<3.12    # fTetWild (?)
   - numpy
   - matplotlib
   - pyvista
   - scikit-image
   - meshio
+  - dask
+  - k3d
   - dask-image
   - seaborn
   - pip
@@ -17,4 +18,5 @@ dependencies:
     - dufte
     - cloud-volume
     - webknossos
+    - connected-components-3d
     #- git+https://github.com/MariusCausemann/wildmeshing-python.git

@@ -1,0 +1,13 @@
+name: pyclesperanto
+channels:
+  - conda-forge
+dependencies:
+  - pyclesperanto-prototype
+  - dask-image
+  - pyvista
+  - ocl-icd-system
+  - pip
+  - pip:
+      - connected-components-3d
+      - fastremap
+

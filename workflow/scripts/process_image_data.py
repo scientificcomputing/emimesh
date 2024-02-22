@@ -8,38 +8,22 @@ from pathlib import Path
 from utils import get_cell_frequencies, np2pv
 from dask_image.ndinterp import affine_transform
 import fastremap
-import cc3d
-import fastmorph
 import skimage.morphology as skim
-
-
-def get_roi_mask(img, roi_cells, radius, iterations, res):
-    roi_mask = fastremap.mask_except(img, roi_cells) > 0
-    for i in range(iterations):
-        roi_mask = fastmorph.spherical_dilate(roi_mask, radius=radius*res[0], parallel=4, anisotropy=res)
-    return roi_mask
-
-def remap_labels(img, cells=None):
-    img, remapping = fastremap.renumber(img, in_place=True)
-    if cells is not None:
-        startid = max(remapping.values()) + 1
-        fastremap.refit(img, startid + len(cells))
-        new_ids = [remapping[cid] for cid in cells]
-        remap_dict = {new_ids[i]:startid + i for i in range(len(cells))}
-        img = fastremap.remap(img, remap_dict, preserve_missing_labels=True, in_place=True)
-        remapping.update({cells[i]:startid + i for i in range(len(cells))})
-    return img, remapping
-
-def merge_labels(img, labels):
-    print(f"merging cells: {labels}")
-    return fastremap.remap(img, {l:labels[0] for l in labels}, in_place=True, preserve_missing_labels=True)
+import pyclesperanto_prototype as cle
+from cle_patch import opening_labels, closing_labels, erode_labels
+import dask.array as da
+import dask
+from functools import partial
+import cc3d
+cle.set_wait_for_kernel_finish(True)
+dask.config.set({"array.chunk-size": "512 MiB"})
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--infile", help="input data", type=str)
     parser.add_argument("--ncells", help="number of cells", type=int, default=2)
     parser.add_argument(
-        "--smoothiter", help="number of smooting iterations", type=int, default=0
+        "--smoothiter", help="number of smoothing iterations", type=int, default=0
     )
     parser.add_argument(
         "--smoothradius", help="radius of smoothing", type=int, default=0
@@ -51,7 +35,7 @@ if __name__ == "__main__":
         "--shrink", help="number of voxels for label shrinkage", type=int, default=1
     )
     parser.add_argument(
-        "--output", help="output filename", type=str, default="processeddata.xdmf"
+        "--output", help="output filename", type=str, default="processeddata.vtk"
     )
     parser.add_argument("--roi", nargs='*',  type=int,
                         help="specify region of interest by cell id")
@@ -59,56 +43,31 @@ if __name__ == "__main__":
     parser.add_argument("--cells", nargs='*', type=int,
                         help="specify cell ids to be included")
     parser.add_argument('--merge', nargs='*', type=int,)
-    parser.add_argument("--nworkers", help="number of threads", type=int)
+    parser.add_argument("--nworkers", help="number of workers", type=int, default=1)
     parser.add_argument("--dx", help="target resolution", type=int, default=None)
 
     args = parser.parse_args()
     parallel = args.nworkers
     print(f"Using {parallel} workers...")
+    print(f"Available  devices {cle.available_device_names()}")    
+    dev = cle.get_device()
+    print(f"Running processing on {dev}")
+    mem_gb = dev.device.global_mem_size / 1e9
+    print(f"device memory detected: {mem_gb:.1f} GB")
+    print(f"smoothing iterations: {args.smoothiter}")
+    print(f"smoothing radius: {args.smoothradius}")
 
     start = time.time()
     imggrid = pv.read(args.infile)
     img = imggrid["data"]
     dims = imggrid.dimensions
     resolution = imggrid.spacing
-
-    img, remapping = remap_labels(img, args.cells)
-
-    if args.merge:
-        img = merge_labels(img, [remapping[l] for l in args.merge])
-
     img = img.reshape(dims - np.array([1, 1, 1]), order="F")
-    
-    dx = max(resolution)
-    if args.dx:
-        dx = args.dx
-        scale = np.diag([dx / r for r in resolution] + [1])
-
-        new_dims = [np.floor(d * r / dx) for d,r in zip(dims, resolution)]
-        isotropic_img = affine_transform(img, scale,
-                                        output_shape=new_dims,
-                                        order=0)
-        img = np.array(isotropic_img)
-        resolution = [dx]*3
-    imggrid = np2pv(img, [dx]*3)
-    imggrid["resampled"] = img.flatten(order="F")
-    
-    if args.roi is not None:
-        roi_cells = [remapping[int(l)] for l in args.roi]
-        roidilate, rioiter = [int(i) for i in args.roidilate.split("-")]
-        roimask = get_roi_mask(img, roi_cells, radius=roidilate, iterations=rioiter, res=resolution)
-        extended_roi = fastmorph.spherical_dilate(roimask, radius=100, parallel=parallel, anisotropy=resolution)
-        img[extended_roi==0] = 0
-    else:
-        roimask = None
-
-    load = time.time()
-    print(f"load data time: {load - start} s")
-    cell_labels, cell_counts = get_cell_frequencies(img)
-    print(cell_labels)
-
-    freq_time = time.time()
-    print(f"get cell frequency time: {freq_time - load} s")
+    img = da.from_array(img)
+    cell_labels, cell_counts = fastremap.unique(img, return_counts=True)
+    remapping = {int(c):i for i,c in enumerate(cell_labels)}
+    img = img.map_blocks(partial(fastremap.remap, table=remapping), dtype=img.dtype)
+    img = img.map_blocks(partial(fastremap.refit, value=len(cell_labels)))
 
     mesh_statistics = dict(
         resolution=resolution,
@@ -116,49 +75,97 @@ if __name__ == "__main__":
         original_cell_labels=cell_labels,
         original_cell_counts=cell_counts,
     )
+
+
+    if args.merge is not None:
+        cells_to_merge = [remapping[int(cid)] for cid in args.merge]
+        print(f"merging cells: {cells_to_merge}")
+        img = da.where(da.isin(img, cells_to_merge), cells_to_merge[0], img)
+
     if args.ncells < len(cell_labels):
-        cois = cell_labels[-args.ncells :]
+        cell_labels = cell_labels[np.argsort(cell_counts)]
+        cois = list(cell_labels[-args.ncells :])
+        if args.cells:
+            for c in args.cells:
+                if c in cois:
+                    cois.remove(c)
+            cois = args.cells + cois[- (args.ncells - len(args.cells)):]
     else:
         cois = cell_labels
-
-
-    print("start processing..")
-
-    img = fastremap.mask_except(img, list(cois))
-    imggrid["masked"] = img.flatten(order="F")
-
-    cc3d.dust(img, threshold=100, connectivity=6, in_place=True)
-    img = fastmorph.fill_holes(img, remove_enclosed=False)
-    from IPython import embed; embed()
+    cois = [remapping[int(cid)] for cid in cois if int(cid) in remapping.keys()]
+    img = da.where(da.isin(img, cois), img, 0)
     
-    for i in range(args.expand):
-        img = fastmorph.dilate(img, background_only=False, parallel=parallel)
-    #img = expand_labels(img, distance=args.expand)
-    imggrid["dilated"] = img.flatten(order="F")
+    if args.dx:
+        dx = args.dx
+    else:
+        dx = max(resolution)
 
-    for i in range(args.smoothiter):
-        img = skim.opening(img, footprint=skim.ball(4))
-        img = skim.closing(img, footprint=skim.ball(4))
-        #img = fastmorph.opening(img, background_only=False,parallel=parallel)
-        #img = fastmorph.closing(img, parallel=parallel)
+    scale = np.diag([dx / r for r in resolution] + [1])
+    new_dims = [int(d * r / dx) for d,r in zip(dims, resolution)]
+    img = affine_transform(img, scale, output_shape=new_dims, order=0,
+                           output_chunks=500)
+    resolution = [dx]*3
 
-    imggrid["smoothed"] = img.flatten(order="F")
+    if args.roi is not None:
+        roi_cells = [remapping[int(cid)] for cid in args.roi]
+        print(f"using mask of the following cells: {roi_cells}")
+        roidilate, rioiter = [int(i) for i in args.roidilate.split("-")]
+        roimask = da.isin(img, roi_cells)
+        roidilatefunc = lambda chunk: np.array(cle.dilate_labels(chunk, radius=roidilate))
+        for i in range(rioiter):
+            roimask = roimask.map_overlap(roidilatefunc, depth=roidilate, dtype=np.uint8)
+        extended_roimask = roimask.map_overlap(roidilatefunc, depth=roidilate, dtype=np.uint8)
+        img = da.where(extended_roimask, img, 0)
+        extended_roimask = None
+    else:
+        roimask = None
 
-    for i in range(args.shrink):
-        img = fastmorph.erode(img, parallel=parallel)
+    if args.cells:
+        vipcells = [remapping[int(cid)] for cid in args.cells if int(cid) in remapping.keys()]
+        vipimg = da.where(da.isin(img, vipcells), img, 0)
+        dilate_vips = lambda chunk: np.array(cle.dilate_labels(chunk, radius=5))
+        vipimg = vipimg.map_overlap(dilate_vips, depth=10)
+        img = da.where(vipimg, vipimg, img)
+    
+    remove_dust = partial(cc3d.dust, threshold=100, connectivity=6)
+    img = img.map_overlap(remove_dust, depth=10)
 
-    imggrid["eroded"] = img.flatten(order="F")
+    def process_img(chunk, smoothradius=0, smoothiter=0, expanditer=0, shrinkiter=0):
+        print("Processing image of size", chunk.shape)
+        for i in range(expanditer):
+            chunk = cle.dilate_labels(chunk, radius=1)
 
-    img[roimask==0] = 0
-    cc3d.dust(img, threshold=100, connectivity=6, in_place=True)
-    imggrid["data"] = img.flatten(order="F")
+        # see: https://haesleinhuepf.github.io/BioImageAnalysisNotebooks/20h_segmentation_post_processing/smooth_labels.html
+        for i in range(smoothiter):
+            chunk = opening_labels(chunk, radius=smoothradius)
+            chunk = closing_labels(chunk, radius=smoothradius)
+            #chunk = cle.smooth_labels(chunk, radius=smoothradius)
 
-    for i in range(3):
-        roimask = fastmorph.erode(roimask,parallel=parallel)
-    imggrid["roimask"] = roimask.flatten(order="F")
+        for i in range(shrinkiter):
+            chunk = erode_labels(chunk, radius=1)
 
+        return np.array(chunk)
+
+    process = partial(process_img, smoothradius=args.smoothradius, smoothiter=args.smoothiter,
+                      expanditer=args.expand, shrinkiter=args.shrink, )
+    img = img.map_overlap(process, depth=10, dtype=img.dtype)
+    if roimask is not None:
+        print("applying roi mask")
+        roimask = roimask.map_blocks(np.array)
+        img = da.where(roimask, img, 0)
+        img = img.map_overlap(remove_dust, depth=10)
+
+    chunk_mem_gb = np.prod(img.chunksize) * np.nbytes[img.dtype] / 1e9
+    max_workers = int(mem_gb / (chunk_mem_gb*3)) # assume max 3x chunk memory is used
+    img = img.compute(num_workers=min(max_workers, args.nworkers))
+    print(f"processed! {img.shape}")
     proc_time = time.time()
-    print(f"total processing time: {proc_time - freq_time} s")
+    imggrid = np2pv(img, resolution)
+
+    if roimask is not None:
+        eroderoi = lambda chunk: np.array(cle.erode_labels(chunk, radius=2))
+        roimask = roimask.map_overlap(eroderoi, depth=10, dtype=roimask.dtype)
+        imggrid["roimask"] = np.array(roimask).flatten(order="F")
 
     resdir = Path(args.output).parent
 

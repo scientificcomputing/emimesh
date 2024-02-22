@@ -20,7 +20,7 @@ def get_cell_frequencies(img):
     # cell_labels, cell_counts = dask.compute(da.unique(img, return_counts=True))[0]
     cell_labels, cell_counts = fastremap.unique(img, return_counts=True)
     indices = np.argsort(cell_counts)
-    return cell_labels[indices], cell_counts[indices]
+    return np.vstack([cell_labels[indices], cell_counts[indices]])
 
 
 def get_bounding_box(meshes, eps=0):
