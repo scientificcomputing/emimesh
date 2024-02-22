@@ -1,19 +1,22 @@
-cloudpath : 
-  adress: "precomputed://gs://iarpa_microns/minnie/minnie65/seg"
+name : "cappilary1"
+fixed : 
+  raw:
+    cloudpath: "precomputed://gs://iarpa_microns/minnie/minnie65/seg"
+    position : "232915-165336-20525"
+  processing:
+    roi : 864691136534887842
+    merge :  864691136534887842 864691135476973891 864691135751005697 864691133070457251 864691136178683094 864691133070456483 864691133070450083 864691133003757151 864691136475845441 864691134032036203
+    cells : 864691134581644554 864691135228370458 864691135918336944 864691136475874625 864691136723365629
 raw:
-  dataset : "minnie65"
-  mip : 1
-  position : "232915-165336-20525"
+  mip : 0
   size : [7500] 
 processing:
-  ncells : [ 100 ]
-  smoothiter : [2,]
-  smoothradius : 40
-  expand : [2]
+  ncells : [ 1000 ]
+  smoothiter : [3]
+  smoothradius : [3]
+  expand : [3]
   shrink : 1
-  dx : 20
-  roi : ["864691136534887842"]
-  roidilate : "8-6"
-  merge : ["864691136534887842-864691135476973891-864691135751005697-864691133070457251-864691136178683094-864691133070456483-864691133070450083"]
+  dx : 8
+  roidilate: "8-8"
 meshing:
-  envelopsize : [8]
+  envelopsize : [5]

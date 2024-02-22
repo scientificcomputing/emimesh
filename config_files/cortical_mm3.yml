@@ -1,14 +1,15 @@
-cloudpath : 
-  adress: "precomputed://gs://iarpa_microns/minnie/minnie65/seg"
+name : cortical_mm3
+fixed :
+  raw:
+    cloudpath : "precomputed://gs://iarpa_microns/minnie/minnie65/seg"
+    mip : 2
+    position : "225182-107314-22000"
 raw:
-  dataset : "minnie65"
-  mip : 2
-  position : "225182-107314-22000"
-  size : [5000, 10000, 20000, 40000,]# 80000]
+  size : [5000, 10000, 20000, 40000]#, 80000]
 processing: 
   ncells : [5, 10, 50, 100, 200, 500]
   smoothiter : [2,]
-  smoothradius : 40
+  smoothradius : 2
   expand : [3]
   shrink : 1
   dx : 20
