@@ -9,12 +9,14 @@ cluster:
     --job-name={rule}-{wildcards}
     --output=logs/{rule}/{wildcards}-%j.out
     --time={resources.time}
+    --gres=gpu:{resources.gpus}
 default-resources:
   - partition=milanq,fpgaq
   - mem_mb=0
   - time="60:00"
   - ntasks=1
   - nodes=1
+  - gpus=0
 restart-times: 0
 max-jobs-per-second: 20
 max-status-checks-per-second: 1
