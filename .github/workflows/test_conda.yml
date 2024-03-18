@@ -27,6 +27,8 @@ jobs:
           python-version: "3.10"
       - name: Install snakemake
         run: |
+          DEBIAN_FRONTEND=noninteractive apt-get update
+          DEBIAN_FRONTEND=noninteractive apt-get install -y gcc
           python -m pip install snakemake
 
       - name: Run snakemake
