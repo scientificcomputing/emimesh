@@ -28,7 +28,7 @@ jobs:
       - name: Install deps
         run: |
           DEBIAN_FRONTEND=noninteractive apt-get update
-          DEBIAN_FRONTEND=noninteractive apt-get install -y gcc unzip make
+          DEBIAN_FRONTEND=noninteractive apt-get install -y gcc unzip make cmake
       #       python -m pip install snakemake
       - name: Setup conda-forge
         uses: conda-incubator/setup-miniconda@v3
