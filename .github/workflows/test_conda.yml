@@ -40,7 +40,7 @@ jobs:
           use-mamba: true
       - name: Install snakemake
         run: |
-          conda install -c conda-forge -c bioconda snakemake
+          mamba install -c conda-forge -c bioconda snakemake
       - name: Run snakemake
         run: |
           python -m snakemake --use-conda --cores 1 -p --configfile ./config-files/cappilary5.yml
