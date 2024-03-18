@@ -43,4 +43,4 @@ jobs:
           mamba install -c conda-forge -c bioconda snakemake
       - name: Run snakemake
         run: |
-          python -m snakemake --use-conda --cores 1 -p --configfile ./config-files/cappilary5.yml
+          python -m snakemake --use-conda --cores 1 -p --configfile ./config_files/cappillary5.yml
