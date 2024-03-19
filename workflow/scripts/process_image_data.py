@@ -130,6 +130,9 @@ if __name__ == "__main__":
         cell_labels.remove(0)
         cois = list(cell_labels[-args.ncells :])
         img = da.where(da.isin(img, cois), img, 0)
+    else:
+        cell_labels = list(cell_labels)
+        cell_labels.remove(0)
 
     remapping = {int(c):i for i,c in enumerate([0] + cell_labels)}
     remap = lambda ids: [remapping[int(i)] for i in ids if i in remapping.keys()]
