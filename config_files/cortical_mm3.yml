@@ -1,17 +1,20 @@
 name : cortical_mm3
-fixed :
+fixed : 
   raw:
     cloudpath : "precomputed://gs://iarpa_microns/minnie/minnie65/seg"
     mip : 2
     position : "225182-107314-22000"
+  processing:
+    operation : 
+      - "removeislands minsize=5000"
+      - "dilate iterations=1 radius=1"
+      - "smooth iterations=1 radius=1"
+      - "erode iterations=1 radius=1"
+      - "removeislands minsize=5000"
 raw:
-  size : [5000, 10000, 20000, 40000]#, 80000]
+  size : [5000, 10000, 20000] #, 40000] #, 40000], 80000]
 processing: 
-  ncells : [5, 10, 50, 100, 200, 500]
-  smoothiter : [2,]
-  smoothradius : 2
-  expand : [3]
-  shrink : 1
   dx : 20
+  ncells : [5, 10, 50, 100] # , 200]
 meshing:
   envelopsize : [12]

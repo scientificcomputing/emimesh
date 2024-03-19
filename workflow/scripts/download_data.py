@@ -55,12 +55,11 @@ if __name__ == "__main__":
         help="point position in x-y-z integer pixel position \
               (can be copied from neuroglancer)",
         type=str,
-        default="225182-107314-19500",
     )
     parser.add_argument(
         "--size",
         help="cube side length of the volume to be downloaded (in nm)",
-        type=int,
+        type=str,
         default=1000,
     )
     parser.add_argument(
@@ -70,11 +69,16 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     position = args.position.split("-")
-    size = [args.size] * 3
+    try:
+        size = [int(args.size)] * 3
+    except ValueError:
+        size = [int(s) for s in args.size.split("-")]
+
     try:
         img,res = download_cloudvolume(args.cloudpath, args.mip, position, size)
     except:
         img,res = download_webknossos(args.cloudpath, args.mip, position, size)
+        
     print(res)
     data = np2pv(img, res)
     Path(args.output).parent.mkdir(exist_ok=True)

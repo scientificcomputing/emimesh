@@ -7,6 +7,7 @@ dependencies:
   - pyvista
   - ocl-icd-system
   - pip
+  - ipython
   - pip:
       - connected-components-3d
       - fastremap

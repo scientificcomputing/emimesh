@@ -33,8 +33,8 @@ surfaces_dir = directory(surf_dir)
 
 
 ruleorder: generateSurfaceTags > generateMesh
-size_to_ntasks =  lambda size: min(16, int((size/5000)**2 + 1))
-size_to_minutes = lambda size: int((size/5000)**2 * 300 + 5)
+size_to_ntasks =  lambda size: min(16, int(1 + (size/1000)**3))
+size_to_minutes = lambda size: int((size/500)**3 * 120 + 60  )
 
 def filename2options(fn):
     cmd = ""
@@ -48,8 +48,12 @@ def name2options(name, step):
     with open(f"config_files/{name}.yml") as infile:
         options = yaml.load(infile, Loader=yaml.FullLoader)["fixed"].get(step, {})
     cmd = ""
-    for k,v in options.items():
-        cmd+= f"--{k} {v} "
+    for k,val in options.items():
+        if isinstance(val, list):
+            for v in val:
+                cmd+= f"--{k} {v} "
+        else:
+            cmd+= f"--{k} {val} "
     return cmd
 
 rd = expand(raw_str, **config["raw"])
@@ -58,23 +62,23 @@ md = expand(mesh_str, **config["meshing"])
 
 rule all:
     input:
-        expand(cellsizeplot,rawdata=rd,processing=pd, name=name),
+        #expand(cellsizeplot,rawdata=rd,processing=pd, name=name),
         expand(mesh_img, rawdata=rd,processing=pd, meshing=md, name=name),  
-        expand(mesh_tag_path, rawdata=rd,processing=pd, meshing=md, name=name),  
+        #expand(mesh_tag_path, rawdata=rd,processing=pd, meshing=md, name=name),  
         #expand(meshstatistic, rawdata=expand(raw_str, **flatconf),
         #       processing=expand(processed_str, **flatconf), **flatconf),
         #expand(mesh_tag_path,rawdata=rd,processing=pd, meshing=md),
-        #expand(zipped, rawdata=expand(raw_str, **config),
-        #       processing=expand(processed_str, **config), **config),
-        #expand(zipped_surf, rawdata=expand(raw_str, **config),
-        #       processing=expand(processed_str, **config), **config),
+        expand(zipped, rawdata=expand(raw_str, **config),
+               processing=expand(processed_str, **config), **config),
+        expand(zipped_surf, rawdata=expand(raw_str, **config),
+               processing=expand(processed_str, **config), **config),
 
 rule zipMesh:
     output:
         zipped
     input:
-        ("results/meshes/minnie65_position-225182-107314-22000_mip-2_size-{size}/" + 
-         "ncells-{ncells}_expand-3_smoothiter-2_smoothradius-40_shrink-1/eps-4/")
+        ("results/cortical_mm3/meshes/size+{size}" + 
+         "dx+20_ncells+{ncells}")
     shell:
         """
         zip -rj9 {output} {input}
@@ -110,15 +114,14 @@ rule processImageData:
     input:
         rawdata=raw_data_path
     output:
-        imagestatistic,
+        #imagestatistic,
         outfile=processed_data_path,
     conda:
         "envs/pycle_env.yml"
     resources:
-        ntasks=lambda wildcards: size_to_ntasks(int(wildcards.rawdata.split("size+")[-1])),
-        time=lambda wildcards: size_to_minutes(int(wildcards.rawdata.split("size+")[-1])),
+        ntasks=10,#=lambda wildcards: size_to_ntasks(int(wildcards.rawdata.split("size+")[-1])),
+        time=30, #lambda wildcards: size_to_minutes(int(wildcards.rawdata.split("size+")[-1])),
         gpus=1,
-        partition="dgx2q,hgx2q"
     params:
         options=lambda wildcards: filename2options(wildcards.processing),
         fopt=lambda wildcards: name2options(wildcards.name, "processing")
@@ -137,7 +140,7 @@ rule extractSurfaces:
         outdir=surfaces_dir,
         csgtree=csgtree
     resources:
-        time=lambda wildcards: size_to_minutes(int(wildcards.rawdata.split("size+")[-1])/2)
+        time=60#lambda wildcards: size_to_minutes(int(wildcards.rawdata.split("size+")[-1])/2)
     conda:
         conda_env
     shell:
@@ -155,9 +158,10 @@ rule generateMesh:
     conda:
         conda_env
     resources:
-        ntasks=lambda wildcards: size_to_ntasks(int(wildcards.rawdata.split("size+")[-1])),
-        time=lambda wildcards: size_to_minutes(int(wildcards.rawdata.split("size+")[-1]))
-    threads: lambda wildcards: size_to_ntasks(int(wildcards.rawdata.split("size+")[-1]))
+        ntasks=lambda wildcards: size_to_ntasks(int(wildcards.rawdata.split("size+")[-1].split("_")[0]) / int(wildcards.processing.split("dx+")[-1].split("_")[0])),
+        time=lambda wildcards: size_to_minutes(int(wildcards.rawdata.split("size+")[-1].split("_")[0]) / int(wildcards.processing.split("dx+")[-1].split("_")[0])),
+        partition="milanq,fpgaq,hgx2q"
+    threads: lambda wildcards: size_to_ntasks(int(wildcards.rawdata.split("size+")[-1].split("_")[0]) / int(wildcards.processing.split("dx+")[-1].split("_")[0])),
     params:
         options=lambda wildcards: filename2options(wildcards.meshing)
     shell:
