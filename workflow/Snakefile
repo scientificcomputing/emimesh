@@ -68,10 +68,10 @@ rule all:
         #expand(meshstatistic, rawdata=expand(raw_str, **flatconf),
         #       processing=expand(processed_str, **flatconf), **flatconf),
         #expand(mesh_tag_path,rawdata=rd,processing=pd, meshing=md),
-        expand(zipped, rawdata=expand(raw_str, **config),
-               processing=expand(processed_str, **config), **config),
-        expand(zipped_surf, rawdata=expand(raw_str, **config),
-               processing=expand(processed_str, **config), **config),
+        #expand(zipped, rawdata=expand(raw_str, **config),
+        #       processing=expand(processed_str, **config), **config),
+        #expand(zipped_surf, rawdata=expand(raw_str, **config),
+        #       processing=expand(processed_str, **config), **config),
 
 rule zipMesh:
     output:
