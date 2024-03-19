@@ -1,4 +1,4 @@
-name : "cappilary1"
+name : "cappilary6"
 fixed : 
   raw:
     cloudpath: "precomputed://gs://iarpa_microns/minnie/minnie65/seg"
@@ -19,4 +19,4 @@ processing:
   dx : 8
   roidilate: "8-8"
 meshing:
-  envelopsize : [5]
+  envelopsize : [8]
