@@ -43,4 +43,4 @@ jobs:
           mamba install -c conda-forge -c bioconda snakemake
       - name: Run snakemake
         run: |
-          export PYOPENCL_COMPILER_OUTPUT=1 && snakemake --use-conda --cores 1 -p --configfile ./config_files/cappilary5.yml
+          export PYOPENCL_COMPILER_OUTPUT=1 && snakemake --use-conda --cores 2 -p --configfile ./config_files/test.yml
