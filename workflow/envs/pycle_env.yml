@@ -10,7 +10,8 @@ dependencies:
   - clinfo
   - ocl-icd-system
   - intel-opencl-rt
-  - pyclesperanto_prototype
+  - pyclesperanto-prototype
+  - pip
   - pip:
       - connected-components-3d
       - fastremap
