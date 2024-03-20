@@ -28,7 +28,7 @@ jobs:
       - name: Install deps
         run: |
           DEBIAN_FRONTEND=noninteractive apt-get update
-          DEBIAN_FRONTEND=noninteractive apt-get install -y gcc unzip make cmake build-essential git libgmp-dev intel-opencl-icd
+          DEBIAN_FRONTEND=noninteractive apt-get install -y gcc unzip make cmake build-essential git libgmp-dev pocl-opencl-icd
       #       python -m pip install snakemake
       - name: Setup conda-forge
         uses: conda-incubator/setup-miniconda@v3
@@ -43,4 +43,4 @@ jobs:
           mamba install -c conda-forge -c bioconda snakemake
       - name: Run snakemake
         run: |
-          export PYOPENCL_COMPILER_OUTPUT=1 && python -m snakemake --use-conda --cores 1 -p --configfile ./config_files/cappilary5.yml
+          export PYOPENCL_COMPILER_OUTPUT=1 && snakemake --use-conda --cores 1 -p --configfile ./config_files/cappilary5.yml
