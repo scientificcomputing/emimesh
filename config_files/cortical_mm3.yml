@@ -12,9 +12,9 @@ fixed :
       - "erode iterations=1 radius=1"
       - "removeislands minsize=5000"
 raw:
-  size : [5000, 10000, 20000] #, 40000] #, 40000], 80000]
+  size : [5000, 10000, 20000, 40000]
 processing: 
   dx : 20
-  ncells : [5, 10, 50, 100] # , 200]
+  ncells : [5, 10, 50, 100, 200]
 meshing:
-  envelopsize : [12]
+  envelopsize : [18]
