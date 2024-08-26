@@ -26,8 +26,8 @@ mesh_path = mesh_dir + "mesh.xdmf"
 mesh_tag_path = mesh_dir + "facets.xdmf"
 meshstatistic = mesh_dir + "meshstatistic.yml"
 mesh_img = mesh_dir + "mesh.png"
-zipped = "zipped/{name}/{meshing}/{rawdata}-{processing}.zip"
-zipped_surf = "zipped_surf/{name}/{meshing}/{rawdata}-{processing}.zip"
+zipped = "zipped/{name}/{meshing}/volmesh_{rawdata}-{processing}.zip"
+zipped_surf = "zipped_surf/{name}/{meshing}/surfaces_{rawdata}-{processing}.zip"
 surfaces_dir = directory(surf_dir)
 
 
