@@ -12,7 +12,7 @@ fixed :
       - "smooth iterations=3 radius=5"
       - "erode iterations=1 radius=1"
       - "roigenerate labels='[864691136534887842]'"
-      - "roidilate iterations=8 radius=8"
+      - "roidilate iterations=4 radius=4"
       - "roiapply"
       - "erode iterations=3 radius=5 labels='[864691136534887842]'"
       - "removeislands minsize=5000"
