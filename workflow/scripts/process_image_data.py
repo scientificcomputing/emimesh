@@ -170,10 +170,8 @@ if __name__ == "__main__":
             roiop = op[3:]
             roi = roi.map_overlap(partial(opdict[roiop], **kwargs), depth=30, dtype=np.uint8)
         else:
-            img = img.map_overlap(partial(opdict[op], **kwargs), depth=30)
+            img = img.map_overlap(partial(opdict[op], **kwargs), depth=30, dtype=img.dtype)
     
-    img = img.map_blocks(cle.pull)
-
     chunk_mem_gb = np.prod(img.chunksize) * np.nbytes[img.dtype] / 1e9
     print(f"chunk size: {chunk_mem_gb} GB")
     max_workers = int(mem_gb / (chunk_mem_gb*3)) # assume max 3x chunk memory is used

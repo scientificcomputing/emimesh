@@ -1,0 +1,11 @@
+*.png
+__*
+results
+results/
+logs/
+
+fTetWild
+zipped
+zipped_surf
+.snakemake
+.vscode

@@ -5,6 +5,9 @@ from plot_utils import get_screenshot
 from pathlib import Path
 import numpy as np
 import matplotlib
+from k3d_headless import generate_screenshots
+import cmocean
+import fastremap
 
 hexcolor = lambda c: int(matplotlib.colors.to_hex(c)[1:], base=16)
 
@@ -40,7 +43,14 @@ if __name__ == "__main__":
     cells = mesh.threshold(1.5, scalars="label")
     if args.exclude is not None:
         cells = cells.extract_cells(np.isin(cells["label"], args.exclude)==False)
-    get_screenshot(cells, args.output, scalar="label", cmap="rainbow")
+    cells["label"] = cells["label"].astype(np.int32)
+    cellids = fastremap.unique(cells["label"])
+    shuffled = list(cellids)
+    np.random.shuffle(shuffled)
+    cells["label"] = fastremap.remap(cells["label"], {k:v for k,v in zip(cellids, shuffled)})
+    
+    newcmap = cmocean.tools.crop_by_percent(cmocean.cm.curl_r, 5, which='max', N=None)
+    get_screenshot(cells, args.output, scalar="label", cmap="curl")
 
     ecs = mesh.extract_cells((mesh["label"]==1))
 
@@ -48,23 +58,14 @@ if __name__ == "__main__":
     color_map = k3d.paraview_color_maps.Linear_Green_Gr4L
     cells = cells.cell_data_to_point_data()
     cells_k3d = k3d.vtk_poly_data(cells.extract_surface(), side="double",
-                              color_attribute=("label", 0, float(cells["label"].max())), 
-                              color_map=color_map, name="cells")
+                              #color_attribute=("label", 0, float(cells["label"].max())), 
+                              #color_map=color_map, name="cells"
+                              color=hexcolor("limegreen"))
     ecs_k3d = k3d.vtk_poly_data(ecs.extract_surface(), side="double", color=hexcolor("white"),
-                                opacity=0.3, name="ecs", wireframe=True)
+                                opacity=0.8,
+                                name="ecs", wireframe=True)
 
-    pl = k3d.plot(
-        camera_rotate_speed=3,
-        camera_zoom_speed=5,
-        screenshot_scale=1,
-        background_color=0x000000,
-        grid_visible=False,
-        camera_auto_fit=True,
-        axes_helper=False,
-        lighting=2
-        )
-    pl += cells_k3d
-    pl += ecs_k3d
+    #generate_screenshots([cells_k3d, ecs_k3d], args.output, fov=32)
 
-    with open(Path(args.output).with_suffix(".html"), 'w') as f:
-        f.write(pl.get_snapshot())
+
+    

@@ -1,14 +1,18 @@
-name: pyclesperanto
+name: intel
 channels:
   - conda-forge
 dependencies:
-  - pyclesperanto-prototype
   - dask-image
   - pyvista
-  - ocl-icd-system
-  - pip
+  - pyopencl
   - ipython
+  - ocl-icd
+  - clinfo
+  - ocl-icd-system
+  - intel-opencl-rt
+  - pyclesperanto-prototype
+  - numpy<2
+  - pip
   - pip:
       - connected-components-3d
       - fastremap
-

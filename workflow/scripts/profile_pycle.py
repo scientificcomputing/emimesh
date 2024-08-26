@@ -31,6 +31,7 @@ print("end unique")
 remapping = {c:i for i,c in enumerate(cell_labels)}
 img = img.map_blocks(partial(fastremap.remap, table=remapping), dtype=img.dtype)
 img = img.map_blocks(partial(fastremap.refit, value=len(cell_labels)))
+
 cle.select_device(cle.available_device_names()[0])
 print(f"Running processing on {cle.get_device()}")
 

@@ -3,20 +3,27 @@ channels:
   - conda-forge
 dependencies:
   - python=<3.12    # fTetWild (?)
-  - numpy
+  - numpy<2
   - matplotlib
-  - pyvista
+  - pyvista=<0.43
+  - pyacvd
   - scikit-image
+  - playwright-python
+  - fenics
   - meshio
   - dask
   - k3d
+  - flask
   - dask-image
   - seaborn
+  - zip
   - pip
   - pip:
-    - pyacvd
+    - pyacvd==0.2.11
+    - fastremap
     - dufte
     - cloud-volume
-    - webknossos
+    - webknossos==0.14.26
     - connected-components-3d
+    - cmocean
     #- git+https://github.com/MariusCausemann/wildmeshing-python.git

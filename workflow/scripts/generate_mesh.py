@@ -30,7 +30,7 @@ def mesh_surfaces(csg_tree, eps, stop_quality, max_threads):
     import wildmeshing as wm
     tetra = wm.Tetrahedralizer(
         epsilon=eps,
-        edge_length_r=eps * 20,
+        edge_length_r=eps * 200,
         coarsen=True,
         stop_quality=stop_quality,
         max_threads=max_threads,
@@ -53,11 +53,17 @@ def mesh_surfaces_os(csg_tree, eps, stop_quality, max_threads, outdir):
     with open(csg_path, "w") as f:
         f.write(json.dumps(csg_tree))
     start = time.time()
-    os.system((f"fTetWild/build/FloatTetwild_bin --csg {csg_path} " + 
-                f"--max-threads {max_threads} -e {eps} " + 
-                f"--stop-energy {stop_quality} --level 2 " +
-                #"--use-input-for-wn " + 
-                f"--output {outdir}/mesh.msh "))
+    cmd = (f"fTetWild/build/FloatTetwild_bin --csg {csg_path} " + 
+           f"--max-threads {max_threads} -e {eps} " + 
+           f"--stop-energy {stop_quality} --level 2 " +
+           f"--output {outdir}/mesh.msh")
+    import subprocess
+    rtn = subprocess.run(cmd, shell=True)
+    #from IPython import embed; embed()
+    #if  rtn.returncode != 0:
+        # sometimes the simpflication process fails during edge swapping (segmentation fault).
+        # in that case, repeat without simplification
+    #    subprocess.run(cmd + " --skip-simplify", shell=True)
     print("mesh generation finished...")
     mesh = pv.read(f"{outdir}/mesh.msh").clean()
     mesh.cell_data.set_array(mesh["gmsh:physical"], "label", deep_copy=True)
@@ -90,7 +96,7 @@ if __name__ == "__main__":
         type=str,
     )
     parser.add_argument(
-        "--max_threads", help="max number of threads", type=int, default=0
+        "--max_threads", help="max number of threads", type=int, default=1
     )
 
     args = parser.parse_args()

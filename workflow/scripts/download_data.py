@@ -28,7 +28,7 @@ def download_webknossos(cloud_path, mip, pos, physical_size):
 
 def download_cloudvolume(cloud_path, mip, pos, physical_size):
     vol = CloudVolume(
-        cloud_path, parallel=8, progress=True, mip=mip, cache=True, bounded=True
+        cloud_path, use_https=True, parallel=8, progress=True, mip=mip, cache=True, bounded=True
     )
     print(f"data resoltion: {vol.resolution}")
     size = [ps / res for ps, res in zip(physical_size, vol.resolution)]
