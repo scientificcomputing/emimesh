@@ -2,7 +2,7 @@ import os
 import yaml
 conda_env = "envs/environment.yml"
 
-configfile: "config_files/cortical_mm3.yml"
+#configfile: "config_files/cortical_mm3.yml"
 
 # setup folder + filename structure for output:
 raw_str = "_".join([k + "+{" +k + "}" for k in config["raw"].keys()])
@@ -71,12 +71,11 @@ rule zipMesh:
     output:
         zipped
     input:
-        mesh_dir=mesh_dir,
         mesh_path=mesh_path,
         mesh_tag_path=mesh_tag_path
     shell:
         """
-        zip -rj9 {output} {input.mesh_dir} -i '*.xdmf' '*.h5' '*.png' '*.yml'
+        zip -rj9 {output} dirname {input.mesh_path} -i '*.xdmf' '*.h5' '*.png' '*.yml'
         """
 
 rule zipSurf:
@@ -149,7 +148,7 @@ rule generateMesh:
         "fTetWild/build/FloatTetwild_bin",
         csgtree=csgtree,
     output:
-        outfile=mesh_path
+        outfile=mesh_path,
     conda:
         conda_env
     resources:
