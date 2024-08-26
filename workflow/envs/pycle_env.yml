@@ -7,9 +7,9 @@ dependencies:
   - pyopencl
   - ipython
   - ocl-icd
+  - ocl-icd-system
   - pyclesperanto-prototype
   - clinfo
-  - pocl
   - numpy<2
   - pip
   - pip:
