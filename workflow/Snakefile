@@ -1,9 +1,8 @@
 import os
-from snakemake.remote.HTTP import RemoteProvider as HTTPRemoteProvider
 import yaml
 conda_env = "envs/environment.yml"
 
-#configfile: "cortical_mm3.yml"
+configfile: "config_files/cortical_mm3.yml"
 
 # setup folder + filename structure for output:
 raw_str = "_".join([k + "+{" +k + "}" for k in config["raw"].keys()])
@@ -27,13 +26,13 @@ mesh_path = mesh_dir + "mesh.xdmf"
 mesh_tag_path = mesh_dir + "facets.xdmf"
 meshstatistic = mesh_dir + "meshstatistic.yml"
 mesh_img = mesh_dir + "mesh.png"
-zipped = "zipped/volume_ncells_{ncells}_size_{size}.zip"
-zipped_surf = "zipped/surface_ncells_{ncells}_size_{size}.zip"
+zipped = "zipped/{name}/{meshing}/{rawdata}-{processing}.zip"
+zipped_surf = "zipped_surf/{name}/{meshing}/{rawdata}-{processing}.zip"
 surfaces_dir = directory(surf_dir)
 
 
 ruleorder: generateSurfaceTags > generateMesh
-size_to_ntasks =  lambda size: min(16, int(1 + (size/1000)**3))
+size_to_ntasks =  lambda size: min(24, int(1 + (size/400)**2))
 size_to_minutes = lambda size: int((size/500)**3 * 120 + 60  )
 
 def filename2options(fn):
@@ -62,37 +61,32 @@ md = expand(mesh_str, **config["meshing"])
 
 rule all:
     input:
-        #expand(cellsizeplot,rawdata=rd,processing=pd, name=name),
         expand(mesh_img, rawdata=rd,processing=pd, meshing=md, name=name),  
-        #expand(mesh_tag_path, rawdata=rd,processing=pd, meshing=md, name=name),  
-        #expand(meshstatistic, rawdata=expand(raw_str, **flatconf),
-        #       processing=expand(processed_str, **flatconf), **flatconf),
-        #expand(mesh_tag_path,rawdata=rd,processing=pd, meshing=md),
-        #expand(zipped, rawdata=expand(raw_str, **config),
-        #       processing=expand(processed_str, **config), **config),
-        #expand(zipped_surf, rawdata=expand(raw_str, **config),
-        #       processing=expand(processed_str, **config), **config),
+        expand(meshstatistic, rawdata=rd,processing=pd, meshing=md, name=name),
+        expand(mesh_tag_path, rawdata=rd,processing=pd, meshing=md, name=name),
+        expand(zipped, rawdata=rd,processing=pd, meshing=md, name=name),
+        expand(zipped_surf, rawdata=rd,processing=pd, meshing=md, name=name),
 
 rule zipMesh:
     output:
         zipped
     input:
-        ("results/cortical_mm3/meshes/size+{size}" + 
-         "dx+20_ncells+{ncells}")
+        mesh_dir=mesh_dir,
+        mesh_path=mesh_path,
+        mesh_tag_path=mesh_tag_path
     shell:
         """
-        zip -rj9 {output} {input}
+        zip -rj9 {output} {input.mesh_dir} -i '*.xdmf' '*.h5' '*.png' '*.yml'
         """
 
 rule zipSurf:
     output:
         zipped_surf
     input:
-        ("results/surfaces/minnie65_position-225182-107314-22000_mip-2_size-{size}/" + 
-         "ncells-{ncells}_expand-3_smoothiter-2_smoothradius-40_shrink-1/")
+        surf_dir=surf_dir,
     shell:
         """
-        zip -rj9 {output} {input}
+        zip -rj9 {output} {input.surf_dir} -i '*.ply'
         """
 
 rule downloadImageData:
@@ -119,8 +113,8 @@ rule processImageData:
     conda:
         "envs/pycle_env.yml"
     resources:
-        ntasks=10,#=lambda wildcards: size_to_ntasks(int(wildcards.rawdata.split("size+")[-1])),
-        time=30, #lambda wildcards: size_to_minutes(int(wildcards.rawdata.split("size+")[-1])),
+        ntasks=10,
+        time=30,
         gpus=1,
     params:
         options=lambda wildcards: filename2options(wildcards.processing),
@@ -140,12 +134,13 @@ rule extractSurfaces:
         outdir=surfaces_dir,
         csgtree=csgtree
     resources:
-        time=60#lambda wildcards: size_to_minutes(int(wildcards.rawdata.split("size+")[-1])/2)
+        time=120,
+        ntasks=36
     conda:
         conda_env
     shell:
         """
-        python3 workflow/scripts/extract_surfaces.py --infile {input.processeddata} \
+        python3 workflow/scripts/extract_surfaces.py --infile {input.processeddata} --ncpus {resources.ntasks} \
         --outdir {output.outdir}
         """
 
@@ -160,7 +155,6 @@ rule generateMesh:
     resources:
         ntasks=lambda wildcards: size_to_ntasks(int(wildcards.rawdata.split("size+")[-1].split("_")[0]) / int(wildcards.processing.split("dx+")[-1].split("_")[0])),
         time=lambda wildcards: size_to_minutes(int(wildcards.rawdata.split("size+")[-1].split("_")[0]) / int(wildcards.processing.split("dx+")[-1].split("_")[0])),
-        partition="milanq,fpgaq,hgx2q"
     threads: lambda wildcards: size_to_ntasks(int(wildcards.rawdata.split("size+")[-1].split("_")[0]) / int(wildcards.processing.split("dx+")[-1].split("_")[0])),
     params:
         options=lambda wildcards: filename2options(wildcards.meshing)
@@ -170,7 +164,8 @@ rule generateMesh:
         --csgtree {input.csgtree} \
         {params.options} \
         --output {output.outfile} \
-        --max_threads {resources.ntasks}
+        --max_threads {resources.ntasks} && \
+        python3 workflow/scripts/seperate_touching_cells.py --infile {output.outfile} --output {output.outfile}
         """
 
 rule generateSurfaceTags:
@@ -227,11 +222,9 @@ rule generateAnalysisPlot:
         --infile {input.infile} --output {output.plotfile}
         """
 
-HTTP = HTTPRemoteProvider()
-
 rule installFTetWild:
     input:
-        HTTP.remote("github.com/wildmeshing/fTetWild/archive/refs/heads/master.zip",
+        storage.http("http://github.com/wildmeshing/fTetWild/archive/refs/heads/master.zip",
                     keep_local=False)
     conda:
         conda_env
