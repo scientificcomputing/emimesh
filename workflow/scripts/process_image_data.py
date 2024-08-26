@@ -111,7 +111,8 @@ if __name__ == "__main__":
     args = parser.parse_args()
     parallel = args.nworkers
     print(f"Using {parallel} workers...")
-    print(f"Available  devices {cle.available_device_names()}")    
+    print(f"Available  devices {cle.available_device_names()}")
+    cle.select_device("NVIDIA")
     dev = cle.get_device()
     print(f"Running processing on {dev}")
     mem_gb = dev.device.global_mem_size / 1e9
