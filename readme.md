@@ -1,5 +1,5 @@
 # EMI-Mesh: Generating high-quality extracellular-membrane-intracellular meshes from imaging data
-
+![example workflow](https://github.com/scientificcomputing/emimesh/actions/workflows/test_conda.yml/badge.svg)
 
 <img src='images/grand_challenge_mesh2.png' width='400'>
 
