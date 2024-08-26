@@ -40,7 +40,7 @@ jobs:
           use-mamba: true
       - name: Install snakemake
         run: |
-          mamba create -c conda-forge -c bioconda -n snakemake snakemake snakemake-storage-plugin-http snakemake-executor-plugin-cluster-generic
+          mamba install -c conda-forge -c bioconda snakemake snakemake-storage-plugin-http snakemake-executor-plugin-cluster-generic
       - name: Run snakemake
         run: |
           export PYOPENCL_COMPILER_OUTPUT=1 && snakemake --use-conda --cores 2 -p --configfile ./config_files/test.yml
