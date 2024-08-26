@@ -4,8 +4,8 @@ on:
   workflow_call:
   pull_request:
     branches: ["main"]
-#  push:
-#     branches: ["main"]
+  push:
+     branches: ["main"]
 
 env:
   DEB_PYTHON_INSTALL_LAYOUT: deb_system
@@ -28,7 +28,7 @@ jobs:
       - name: Install deps
         run: |
           DEBIAN_FRONTEND=noninteractive apt-get update
-          DEBIAN_FRONTEND=noninteractive apt-get install -y gcc unzip make cmake build-essential git libgmp-dev xvfb
+          DEBIAN_FRONTEND=noninteractive apt-get install -y gcc unzip make cmake build-essential git libgmp-dev xvfb intel-opencl-icd
       #       python -m pip install snakemake
       - name: Setup conda-forge
         uses: conda-incubator/setup-miniconda@v3

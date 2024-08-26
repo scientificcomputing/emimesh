@@ -9,7 +9,7 @@ dependencies:
   - ocl-icd
   - clinfo
   - ocl-icd-system
-  - intel-opencl-rt
+  #- intel-opencl-rt
   - pyclesperanto-prototype
   - numpy<2
   - pip
