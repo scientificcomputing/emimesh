@@ -4,6 +4,10 @@ conda_env = "envs/environment.yml"
 
 #configfile: "config_files/cortical_mm3.yml"
 
+if len(config)==0:
+    print("Please specify a configfile with 'snakemake --configfile filename'")
+    exit()
+    
 # setup folder + filename structure for output:
 raw_str = "_".join([k + "+{" +k + "}" for k in config["raw"].keys()])
 processed_str = "_".join([k + "+{" +k + "}" for k in config["processing"].keys()])

@@ -30,6 +30,7 @@ def clip_closed_surface(surf, normal='x', origin=None, tolerance=1e-06, inplace=
     result = _get_output(alg)
     if inplace:
         surf.copy_from(result, deep=False)
+        return None
     else:
         return result
 
@@ -69,6 +70,7 @@ def extract_surf_id(obj_id, mesh_reduction_factor, taubin_smooth_iter,
                     taubin_smooth_iter,filename=filename)
     if surf:
         return obj_id
+    else: return None
     
 
 def extract_cell_meshes(
@@ -89,10 +91,13 @@ def extract_cell_meshes(
     import multiprocessing
     from multiprocessing import Pool
     multiprocessing.set_start_method("fork")
+    print(cell_labels)
     with Pool(ncpus) as pool:
         args = [(obj_id, mesh_reduction_factor, taubin_smooth_iter, 
                  f"{write_dir}/{obj_id}.ply") for obj_id in cell_labels]
         surfaces = pool.starmap(extract_surf_id, args)
+        pool.close()
+        pool.join()
 
     return surfaces
 
