@@ -5,11 +5,14 @@ dependencies:
   - python=<3.12    # fTetWild (?)
   - numpy
   - matplotlib
-  - pyvista
+  - pyvista=<0.43
   - scikit-image
+  - playwright-python
+  - fenics
   - meshio
   - dask
   - k3d
+  - flask
   - dask-image
   - seaborn
   - pip
@@ -19,4 +22,5 @@ dependencies:
     - cloud-volume
     - webknossos
     - connected-components-3d
+    - cmocean
     #- git+https://github.com/MariusCausemann/wildmeshing-python.git
