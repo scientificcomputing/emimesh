@@ -77,6 +77,8 @@ rule zipMesh:
     input:
         mesh_path=mesh_path,
         mesh_tag_path=mesh_tag_path
+    conda:
+        conda_env
     shell:
         """
         zip -rj9 {output} dirname {input.mesh_path} -i '*.xdmf' '*.h5' '*.png' '*.yml'
@@ -87,6 +89,8 @@ rule zipSurf:
         zipped_surf
     input:
         surf_dir=surf_dir,
+    conda:
+        conda_env
     shell:
         """
         zip -rj9 {output} {input.surf_dir} -i '*.ply'
