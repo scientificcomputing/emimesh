@@ -78,6 +78,7 @@ def extract_cell_meshes(
     mesh_reduction_factor=10,
     taubin_smooth_iter=0,
     write_dir=None,
+    ncpus=1
 ):
     global padded
     global grid
@@ -88,7 +89,7 @@ def extract_cell_meshes(
     import multiprocessing
     from multiprocessing import Pool
     multiprocessing.set_start_method("fork")
-    with Pool(20) as pool:
+    with Pool(ncpus) as pool:
         args = [(obj_id, mesh_reduction_factor, taubin_smooth_iter, 
                  f"{write_dir}/{obj_id}.ply") for obj_id in cell_labels]
         surfaces = pool.starmap(extract_surf_id, args)
@@ -112,6 +113,9 @@ if __name__ == "__main__":
     parser.add_argument(
         "--outdir", help="directory for output", type=str, default="output"
     )
+    parser.add_argument(
+        "--ncpus", help="number oc cores, default 1", type=int, default=1
+    )
     args = parser.parse_args()
     outdir = Path(args.outdir)
     print(f"reading file: {args.infile}")
@@ -123,8 +127,7 @@ if __name__ == "__main__":
     cell_labels = list(cell_labels[np.argsort(cell_counts)])
     cell_labels.remove(0)
 
-
-    outerbox = get_bounding_box([img_grid], resolution[0]*5 + img_grid.length*0.002)
+    outerbox = get_bounding_box(img_grid, resolution[0]*5 + img_grid.length*0.002)
 
     if "roimask" in img_grid.array_names:
         roimask = img_grid["roimask"].reshape(dims - np.array([1, 1, 1]), 
@@ -147,6 +150,7 @@ if __name__ == "__main__":
         mesh_reduction_factor=10,
         taubin_smooth_iter=5,
         write_dir=outdir,
+        ncpus=args.ncpus
     )
 
     mesh_files = [outdir / f"{cid}.ply" for cid in surfs]

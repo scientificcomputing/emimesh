@@ -23,19 +23,8 @@ def get_cell_frequencies(img):
     return np.vstack([cell_labels[indices], cell_counts[indices]])
 
 
-def get_bounding_box(meshes, eps=0):
-    max_p = -np.ones(3) * np.inf
-    min_p = +np.ones(3) * np.inf
+def get_bounding_box(mesh, eps=0):
 
-    for m in meshes:
-        try:
-            p = m.points
-        except:
-            p = m
-        mmax = p.max(axis=0)
-        max_p = np.array([max_p, mmax]).max(axis=0)
-        mmin = p.min(axis=0)
-        min_p = np.array([min_p, mmin]).min(axis=0)
-
-    bounds = np.array([min_p + eps, max_p - eps]).T.flatten()
-    return pv.Box(bounds)
+    eps = np.vstack([np.ones(3), - np.ones(3)]).T * eps
+    bounds = np.array(mesh.bounds).reshape(3,2)
+    return pv.Box((bounds + eps).flatten())

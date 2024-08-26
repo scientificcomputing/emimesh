@@ -32,6 +32,7 @@ def compute_local_width(mesh, ecs_id, cell_ids):
 
 def compute_surface_volume(mesh, cell_ids):
     mesh = mesh.compute_cell_sizes()
+    mesh["Volume"] = np.abs(mesh["Volume"])
     assert (mesh["Volume"] > 0).all()
     volumes, surface_areas = [], []
     for cid in cell_ids:

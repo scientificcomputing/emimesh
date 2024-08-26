@@ -11,6 +11,7 @@ def mark_interfaces(mesh, subdomains, outer_offset):
         for c in cells(f):
             domains.append(subdomains[c])
         domains = list(set(domains))
+        domains.sort()
         if f.exterior():
             bm[f] = domains[0] + outer_offset
             continue
