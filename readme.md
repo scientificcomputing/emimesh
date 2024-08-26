@@ -15,11 +15,15 @@ This repo provides a pipeline to generate high quality tetrahedral meshes of bra
 ## Getting started
 
 First, install snakemake (using e.g. mamba/conda):
+
 `mamba create -c conda-forge -c bioconda -n snakemake snakemake snakemake-storage-plugin-http snakemake-executor-plugin-cluster-generic`
+
 and activate it:
 `mamba activate snakemake`
 
+
 Then, run snakemake on your configuration file, with e.g.
+
 `snakemake --configfile configfiles/cortical_mm3.yml --use-conda --cores 8`
 
 
