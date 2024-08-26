@@ -41,7 +41,7 @@ def clip_closed_box(surf, box):
         clip_closed_surface(surf, normal=-n, origin=midp, inplace=True)
         
 def n_point_target(n, mesh_reduction_factor):
-    return 50 + n / mesh_reduction_factor
+    return int(50 + n / mesh_reduction_factor)
 
 
 def extract_surface(mask, grid, mesh_reduction_factor, taubin_smooth_iter, filename=None):
