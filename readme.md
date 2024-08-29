@@ -13,6 +13,8 @@ This repo provides a pipeline to generate high quality tetrahedral meshes of bra
 - basic image processing steps included, to account for e.g. missing ECS from chemically fixated tissue
 
 ## Getting started
+EMImesh uses OpenCL to run image processing steps on your GPU (if avaialable) and as such requires an OpenCL device driver. See here (https://documen.tician.de/pyopencl/misc.html) for details on installing OpenCL. If you are on ubuntu, `sudo apt-get install pocl` is an easy way of installing an CPU and GPU-capable OpenCL implementation.
+Further, `xvfb`is required to create visualizations of the meshes on headless machines. Install with `sudo apt-get install xfvb`. Other dependencies will be handled and installed via snakemake.
 
 First, install snakemake (using e.g. mamba/conda):
 
