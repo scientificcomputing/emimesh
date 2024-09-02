@@ -24,6 +24,7 @@ dependencies:
     - dufte
     - cloud-volume
     - webknossos==0.14.26
+    - cattrs==23.2.3
     - connected-components-3d
     - cmocean
     #- git+https://github.com/MariusCausemann/wildmeshing-python.git
