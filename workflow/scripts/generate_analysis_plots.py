@@ -1,17 +1,9 @@
 import numpy as np
 import argparse
 import yaml
-import dufte
 import matplotlib.pyplot as plt
 from matplotlib.ticker import PercentFormatter
 import seaborn as sns
-import matplotlib
-
-for k, v in dufte.style.items():
-    if "color" in k:
-        dufte.style[k] = "black"
-
-plt.style.use(dufte.style)
 
 
 def plot_cell_sizes(mesh_statistics, filename):

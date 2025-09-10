@@ -3,7 +3,6 @@ import numpy as np
 import argparse
 import yaml
 from pathlib import Path
-from plot_utils import set_plotting_defaults, dpi
 import matplotlib.pyplot as plt
 import seaborn as sns
 
@@ -44,9 +43,7 @@ def compute_surface_volume(mesh, cell_ids):
 
 
 def plot_local_width(width, volume, filename):
-    set_plotting_defaults()
-
-    plt.figure(dpi=dpi)
+    plt.figure(dpi=300)
     sns.histplot(
         x=width,
         weights=volume,
@@ -60,7 +57,6 @@ def plot_local_width(width, volume, filename):
     plt.ylabel("relative frequency (%)")
     plt.tight_layout()
     plt.savefig(filename)
-
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -76,7 +72,7 @@ if __name__ == "__main__":
     )
 
     args = parser.parse_args()
-    mesh = pv.read(args.infile)
+    mesh = pv.read_meshio(args.infile)
     cell_ids = list(np.unique(mesh[lstr]))
     cell_ids.remove(ecs_id)
     #ecs_width, ecs_cell_volume = compute_local_width(mesh, ecs_id, cell_ids=cell_ids)

@@ -9,7 +9,6 @@ from utils import get_bounding_box
 import fastremap
 
 from pyvista.core import _vtk_core as _vtk
-
 from pyvista.core.filters import _get_output, _update_alg
 from pyvista.core.utilities.helpers import generate_plane
 
@@ -26,7 +25,7 @@ def clip_closed_surface(surf, normal='x', origin=None, tolerance=1e-06, inplace=
     alg.SetInputDataObject(surf)
     alg.SetTolerance(tolerance)
     alg.SetClippingPlanes(collection)
-    _update_alg(alg, progress_bar, 'Clipping Closed Surface')
+    _update_alg(alg, progress_bar=False, message='Clipping Closed Surface')
     result = _get_output(alg)
     if inplace:
         surf.copy_from(result, deep=False)
@@ -52,13 +51,8 @@ def extract_surface(mask, grid, mesh_reduction_factor, taubin_smooth_iter, filen
     n_points = surf.number_of_points
     clus = pyacvd.Clustering(surf)
     clus.cluster(n_point_target(n_points, mesh_reduction_factor))
-    try:
-        surf = clus.create_mesh()
-    except:
-        print("meshing failed")
-        return None
-    surf.smooth_taubin(taubin_smooth_iter, inplace=True)
-    print(surf.number_of_points)
+    surf = clus.create_mesh()
+    surf.smooth_taubin(n_iter=taubin_smooth_iter, inplace=True)
     if surf.number_of_points > 10 and filename is not None:
         print(f"saving : {filename}")
         pv.save_meshio(filename, surf)
@@ -72,7 +66,6 @@ def extract_surf_id(obj_id, mesh_reduction_factor, taubin_smooth_iter,
         return obj_id
     else: return None
     
-
 def extract_cell_meshes(
     img,
     cell_labels,
@@ -91,14 +84,12 @@ def extract_cell_meshes(
     import multiprocessing
     from multiprocessing import Pool
     multiprocessing.set_start_method("fork")
-    print(cell_labels)
     with Pool(ncpus) as pool:
         args = [(obj_id, mesh_reduction_factor, taubin_smooth_iter, 
                  f"{write_dir}/{obj_id}.ply") for obj_id in cell_labels]
         surfaces = pool.starmap(extract_surf_id, args)
         pool.close()
         pool.join()
-
     return surfaces
 
 def create_balanced_csg_json_tree(surface_files):
