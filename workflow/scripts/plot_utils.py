@@ -1,20 +1,7 @@
-import dufte
 import seaborn as sns
 import matplotlib.pyplot as plt
 import pyvista as pv
-import os
-import time
 dpi = 500
-
-
-import dufte
-def set_plotting_defaults():
-    for k, v in dufte.style.items():
-        if "color" in k:
-            dufte.style[k] = "black"
-    plt.style.use(dufte.style)
-    sns.set_context("talk")
-
 
 def get_screenshot(mesh, filename, cmap="rainbow", scalar="label"):
     p = pv.Plotter(off_screen=True)
