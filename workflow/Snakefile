@@ -68,33 +68,6 @@ rule all:
         expand(mesh_img, rawdata=rd,processing=pd, meshing=md, name=name),  
         expand(meshstatistic, rawdata=rd,processing=pd, meshing=md, name=name),
         expand(mesh_tag_path, rawdata=rd,processing=pd, meshing=md, name=name),
-        expand(zipped, rawdata=rd,processing=pd, meshing=md, name=name),
-        expand(zipped_surf, rawdata=rd,processing=pd, meshing=md, name=name),
-
-rule zipMesh:
-    output:
-        zipped
-    input:
-        mesh_path=mesh_path,
-        mesh_tag_path=mesh_tag_path
-    conda:
-        conda_env
-    shell:
-        """
-        zip -rj9 {output} dirname {input.mesh_path} -i '*.xdmf' '*.h5' '*.png' '*.yml'
-        """
-
-rule zipSurf:
-    output:
-        zipped_surf
-    input:
-        surf_dir=surf_dir,
-    conda:
-        conda_env
-    shell:
-        """
-        zip -rj9 {output} {input.surf_dir} -i '*.ply'
-        """
 
 rule downloadImageData:
     output:
@@ -153,7 +126,6 @@ rule extractSurfaces:
 
 rule generateMesh:
     input:
-        "fTetWild/build/FloatTetwild_bin",
         csgtree=csgtree,
     output:
         outfile=mesh_path,
@@ -212,7 +184,7 @@ rule takeScreenshot:
         conda_env
     shell:
         """
-        xvfb-run -a python3 workflow/scripts/generate_screenshot.py \
+        python3 workflow/scripts/generate_screenshot.py \
         --infile {input} --output {output}
         """
 
@@ -227,19 +199,5 @@ rule generateAnalysisPlot:
         """
         python3 workflow/scripts/generate_analysis_plots.py \
         --infile {input.infile} --output {output.plotfile}
-        """
-
-rule installFTetWild:
-    input:
-        storage.http("http://github.com/wildmeshing/fTetWild/archive/refs/heads/master.zip",
-                    keep_local=False)
-    conda:
-        conda_env
-    output:
-        "fTetWild/build/FloatTetwild_bin",
-        directory("fTetWild")
-    shell:
-        """
-        unzip {input} -d fTetWild && cd fTetWild/build/ && cmake ../fTetWild-master && make -j
         """
 
