@@ -2,13 +2,12 @@ name: emimesh
 channels:
   - conda-forge
 dependencies:
-  - python=<3.12    # fTetWild (?)
-  - numpy<2
+  - python
+  - numpy
   - matplotlib
-  - pyvista=<0.43
+  - pyvista
   - pyacvd
   - scikit-image
-  - playwright-python
   - fenics
   - meshio
   - dask
@@ -19,12 +18,11 @@ dependencies:
   - zip
   - pip
   - pip:
-    - pyacvd==0.2.11
+    - pyacvd>=0.3
+    - wildmeshing
     - fastremap
-    - dufte
     - cloud-volume
-    - webknossos==0.14.26
-    - cattrs==23.2.3
+    - webknossos
+    - cattrs
     - connected-components-3d
     - cmocean
-    #- git+https://github.com/MariusCausemann/wildmeshing-python.git
