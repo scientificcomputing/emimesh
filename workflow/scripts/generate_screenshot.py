@@ -2,10 +2,8 @@ import argparse
 import pyvista as pv
 import k3d
 from plot_utils import get_screenshot
-from pathlib import Path
 import numpy as np
 import matplotlib
-from k3d_headless import generate_screenshots
 import cmocean
 import fastremap
 
@@ -31,9 +29,8 @@ if __name__ == "__main__":
     )
 
 
-
     args = parser.parse_args()
-    mesh = pv.read(args.infile)
+    mesh = pv.read_meshio(args.infile)
     bounds = list(mesh.bounds)
     bounds[1] = (bounds[0] + bounds[1]) * 0.5
     bounds[3] = (bounds[2] + bounds[3]) * 0.5
