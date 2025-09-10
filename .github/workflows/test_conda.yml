@@ -33,14 +33,11 @@ jobs:
       - name: Setup conda-forge
         uses: conda-incubator/setup-miniconda@v3
         with:
-          miniforge-variant: Mambaforge
-          miniforge-version: latest
-          activate-environment: EMIMESH
-          python-version: "3.12"
-          use-mamba: true
+          auto-activate-base: true
+          activate-environment: ""
       - name: Install snakemake
         run: |
-          mamba install -c conda-forge -c bioconda snakemake snakemake-storage-plugin-http snakemake-executor-plugin-cluster-generic
+          conda install -c conda-forge -c bioconda snakemake snakemake-storage-plugin-http snakemake-executor-plugin-cluster-generic
       - name: Run snakemake
         run: |
           export PYOPENCL_COMPILER_OUTPUT=1 && snakemake --use-conda --cores 2 -p --configfile ./config_files/test.yml
