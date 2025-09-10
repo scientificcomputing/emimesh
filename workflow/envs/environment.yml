@@ -4,6 +4,7 @@ channels:
 dependencies:
   - python
   - numpy
+  - vtk=*=*mesa*
   - matplotlib
   - pyvista
   - pyacvd
