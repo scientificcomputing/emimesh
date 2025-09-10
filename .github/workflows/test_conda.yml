@@ -35,9 +35,12 @@ jobs:
         with:
           auto-activate-base: true
           activate-environment: ""
+          miniforge-version: latest
+          channels: conda-forge,bioconda
+          conda-remove-defaults: "true"
       - name: Install snakemake
         run: |
-          conda install -c conda-forge -c bioconda snakemake snakemake-storage-plugin-http snakemake-executor-plugin-cluster-generic
+          conda install snakemake snakemake-storage-plugin-http snakemake-executor-plugin-cluster-generic
       - name: Run snakemake
         run: |
           export PYOPENCL_COMPILER_OUTPUT=1 && snakemake --use-conda --cores 2 -p --configfile ./config_files/test.yml
