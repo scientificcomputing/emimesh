@@ -1,0 +1,13 @@
+name: intel
+channels:
+  - conda-forge
+dependencies:
+  - dask-image
+  - pyvista
+  - ipython
+  - numba
+  - pip
+  - pip:
+      - connected-components-3d
+      - fastremap
+      - nbmorph

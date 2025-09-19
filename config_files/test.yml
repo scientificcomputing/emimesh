@@ -8,15 +8,15 @@ fixed :
     operation : 
       - "merge labels='[864691136534887842, 864691132131484059, 864691132336155009, 864691132348210676, 864691135791214365, 864691135971392446]'"
       - "removeislands minsize=5000"
-      - "dilate iterations=3 radius=3"
+      - "dilate radius=9"
       - "smooth iterations=3 radius=5"
-      - "erode iterations=1 radius=1"
+      - "erode radius=1"
       - "roigenerate labels='[864691136534887842]'"
-      - "roidilate iterations=4 radius=6"
+      - "roidilate radius=24"
       - "roiapply"
-      - "erode iterations=3 radius=5 labels='[864691136534887842]'"
+      - "erode radius=15 labels='[864691136534887842]'"
       - "removeislands minsize=5000"
-      - "roierode iterations=2 radius=1"
+      - "roierode radius=2"
 raw:
   mip : 1
   size : [5000] 

@@ -91,7 +91,7 @@ rule processImageData:
         #imagestatistic,
         outfile=processed_data_path,
     conda:
-        "envs/pycle_env.yml"
+        "envs/nbmorph_env.yml"
     resources:
         ntasks=10,
         time=30,
