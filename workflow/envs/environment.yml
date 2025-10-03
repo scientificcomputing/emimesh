@@ -2,7 +2,7 @@ name: emimesh
 channels:
   - conda-forge
 dependencies:
-  - python
+  - python=3.10
   - numpy
   - vtk=*=*mesa*
   - matplotlib
@@ -20,10 +20,9 @@ dependencies:
   - pip
   - pip:
     - pyacvd>=0.3
-    - wildmeshing
+    - pytetwild
     - fastremap
     - cloud-volume
     - webknossos
-    - cattrs
     - connected-components-3d
     - cmocean
