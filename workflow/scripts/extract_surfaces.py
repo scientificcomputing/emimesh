@@ -39,23 +39,70 @@ def clip_closed_box(surf, box):
     centers = box.cell_centers().points
     for midp, n in zip(centers, box.cell_normals):
         clip_closed_surface(surf, normal=-n, origin=midp, inplace=True)
-        
+
+def clean_mesh_nan_points(grid: pv.PolyData):
+    """
+    Replaces NaN point coordinates in a PyVista grid with the mean of their
+    connected neighbors using the efficient `point_neighbors` method.
+
+    Args:
+        grid: A PyVista PolyData object that may contain NaN values in its points.
+
+    """
+    grid = grid
+    points = grid.points
+
+    # Find the indices of points where any coordinate is NaN
+    nan_point_indices = np.where(np.isnan(points).any(axis=1))[0]
+
+    if nan_point_indices.size == 0:
+        return
+
+    print(f"Found {len(nan_point_indices)} points with NaN coordinates. Cleaning them...")
+
+    # Iterate through each point with NaN coordinates
+    for point_idx in nan_point_indices:
+        # Directly get the indices of the neighboring points
+        neighbor_indices = grid.point_neighbors(point_idx)
+
+        if not neighbor_indices:
+            # As a fallback, if the point has no neighbors, replace with origin.
+            points[point_idx] = [0, 0, 0]
+            continue
+
+        # Get the coordinates of the neighbors
+        neighbor_coords = points[neighbor_indices]
+
+        # Filter out any neighbors that are also NaN
+        valid_neighbors = neighbor_coords[~np.isnan(neighbor_coords).any(axis=1)]
+
+        if valid_neighbors.shape[0] > 0:
+            # Calculate the mean of the valid neighbors and replace the NaN point
+            points[point_idx] = np.mean(valid_neighbors, axis=0)
+        else:
+            # Fallback if all neighbors are also NaN
+            points[point_idx] = [0, 0, 0]
+
 def n_point_target(n, mesh_reduction_factor):
     return int(50 + n / mesh_reduction_factor)
 
 
 def extract_surface(mask, grid, mesh_reduction_factor, taubin_smooth_iter, filename=None):
     mesh = grid.contour([0.5], mask.flatten(order="F"), method="marching_cubes")
-    surf = mesh.extract_geometry()
-    surf.clear_data()
-    n_points = surf.number_of_points
-    clus = pyacvd.Clustering(surf)
+    origsurf = mesh.extract_geometry()
+    origsurf.clear_data()
+    n_points = origsurf.number_of_points
+    if n_points < 10: return False
+    clus = pyacvd.Clustering(origsurf)
     clus.cluster(n_point_target(n_points, mesh_reduction_factor))
     surf = clus.create_mesh()
     surf.smooth_taubin(n_iter=taubin_smooth_iter, inplace=True)
+    clean_mesh_nan_points(surf)
+    assert np.isnan(surf.points).any() == False
     if surf.number_of_points > 10 and filename is not None:
         print(f"saving : {filename}")
         pv.save_meshio(filename, surf)
+    
     return surf
 
 def extract_surf_id(obj_id, mesh_reduction_factor, taubin_smooth_iter,
@@ -71,7 +118,7 @@ def extract_cell_meshes(
     cell_labels,
     resolution,
     mesh_reduction_factor=10,
-    taubin_smooth_iter=0,
+    taubin_smooth_iter=5,
     write_dir=None,
     ncpus=1
 ):
@@ -92,11 +139,11 @@ def extract_cell_meshes(
         pool.join()
     return surfaces
 
-def create_balanced_csg_json_tree(surface_files):
+def create_balanced_csg_tree(surface_files):
     n = len(surface_files)
     if  n >= 2:
-        return {"operation": "union", "left": create_balanced_csg_json_tree(surface_files[:int(n/2)])
-                                    , "right": create_balanced_csg_json_tree(surface_files[int(n/2):])}
+        return {"operation": "union", "left": create_balanced_csg_tree(surface_files[:int(n/2)])
+                                    , "right": create_balanced_csg_tree(surface_files[int(n/2):])}
     return surface_files[0]
 
 if __name__ == "__main__":
@@ -141,7 +188,7 @@ if __name__ == "__main__":
 
     surfs = extract_cell_meshes(
         img,
-        cell_labels,
+        cell_labels[::-1],
         resolution,
         mesh_reduction_factor=10,
         taubin_smooth_iter=5,
@@ -149,10 +196,10 @@ if __name__ == "__main__":
         ncpus=args.ncpus
     )
 
-    mesh_files = [outdir / f"{cid}.ply" for cid in surfs]
+    mesh_files = [outdir / f"{cid}.ply" for cid in surfs if cid]
     roisurf.save(roi_file)
-    csg_tree = create_balanced_csg_json_tree([str(f) for f in mesh_files])
-    csg_tree = create_balanced_csg_json_tree([str(roi_file), csg_tree])
-
+    csg_tree = create_balanced_csg_tree([str(f) for f in mesh_files])
+    csg_tree = create_balanced_csg_tree([str(roi_file), csg_tree])
+    csg_tree = {"operation":"intersection","right":csg_tree, "left":str(roi_file)}
     with open(outdir / "csgtree.json", "w") as outfile:
         outfile.write(json.dumps(csg_tree))
