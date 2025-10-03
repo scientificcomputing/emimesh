@@ -119,7 +119,7 @@ if __name__ == "__main__":
         img = da.where(da.isin(img, cois), img, 0)
     else:
         cell_labels = list(cell_labels)
-        cell_labels.remove(0)
+        if 0 in cell_labels: cell_labels.remove(0)
 
     # remap labels to smaller, sequential ints
     remapping = {int(c):i for i,c in enumerate([0] + cell_labels)}
