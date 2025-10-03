@@ -1,12 +1,19 @@
-dataset : "motta"
-cloudpath : 
-  "motta": "https://webknossos.org/datasets/MPI_Brain_Research/2012-09-28_ex145_07x2_ROI2017_connectome/view/"
-mip : [2]
-position : "2016-3595-2015"
-size : [5000, 10000, 20000] 
-ncells : [5, 10, 50, 100, 200, 1000]
-smoothiter : [0,]
-smoothradius : 0
-expand : [0]
-shrink : 0
-envelopsize : [8]
+name : "motta2019"
+fixed : 
+  raw:
+    cloudpath: "https://webknossos.org/datasets/l4dense_motta_et_al_demo-5f33d5340100001800e8cddc/view"
+    position : "2816-4352-1792"
+  processing:
+    operation : 
+      - "removeislands minsize=8000"
+      - "dilate radius=1"
+      - "smooth iterations=3 radius=6"
+      - "erode radius=3"
+raw:
+  mip : 2
+  size : [4000] 
+processing:
+  dx : 18
+meshing:
+  envelopsize : [12]
+  

@@ -9,17 +9,17 @@ fixed :
     #cells : 864691134581644554 864691135228370458 864691135918336944 864691136475874625 864691136723365629
     operation : 
       - "merge labels='[864691136534887842, 864691135476973891, 864691135751005697, 864691133070457251, 864691136178683094, 864691133070456483, 864691133070450083, 864691133003757151, 864691136475845441, 864691134032036203, 864691131901467286]'"
-      - "dilate iterations=2 radius=2 labels='[864691134581644554, 864691135228370458, 864691135918336944, 864691136475874625, 864691136723365629, 864691134308859492]'"
+      - "dilate radius=4 labels='[864691134581644554, 864691135228370458, 864691135918336944, 864691136475874625, 864691136723365629, 864691134308859492]'"
       - "removeislands minsize=5000"
-      - "dilate iterations=3 radius=3"
+      - "dilate radius=9"
       - "smooth iterations=3 radius=5"
-      - "erode iterations=1 radius=1"
+      - "erode radius=1"
       - "roigenerate labels='[864691136534887842]'"
-      - "roidilate iterations=10 radius=8"
+      - "roidilate radius=80"
       - "roiapply"
-      - "erode iterations=3 radius=5 labels='[864691136534887842]'"
+      - "erode radius=15 labels='[864691136534887842]'"
       - "removeislands minsize=5000"
-      - "roierode iterations=2 radius=2"
+      - "roierode radius=4"
 raw:
   mip : 0
   size : [7500] 
