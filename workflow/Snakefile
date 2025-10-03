@@ -115,7 +115,7 @@ rule extractSurfaces:
         csgtree=csgtree
     resources:
         time=120,
-        ntasks=36
+        ntasks=4
     conda:
         conda_env
     shell:
@@ -143,9 +143,11 @@ rule generateMesh:
         --csgtree {input.csgtree} \
         {params.options} \
         --output {output.outfile} \
-        --max_threads {resources.ntasks} && \
-        python3 workflow/scripts/seperate_touching_cells.py --infile {output.outfile} --output {output.outfile}
+        --max_threads {resources.ntasks} \
         """
+
+#   python3 workflow/scripts/seperate_touching_cells.py --infile {output.outfile} --output {output.outfile}
+
 
 rule generateSurfaceTags:
     input:
