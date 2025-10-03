@@ -2,7 +2,6 @@ import pyvista as pv
 import numpy as np
 import argparse
 import yaml
-from pathlib import Path
 import matplotlib.pyplot as plt
 import seaborn as sns
 
@@ -37,8 +36,8 @@ def compute_surface_volume(mesh, cell_ids):
     for cid in cell_ids:
         cell = mesh.extract_cells(np.isin(mesh.cell_data[lstr], [cid]))
         surf = cell.extract_surface()
-        surface_areas.append(surf.compute_cell_sizes()["Area"].sum())
-        volumes.append(cell["Volume"].sum())
+        surface_areas.append(float(surf.compute_cell_sizes()["Area"].sum()))
+        volumes.append(float(cell["Volume"].sum()))
     return volumes, surface_areas
 
 
@@ -87,6 +86,7 @@ if __name__ == "__main__":
     cell_boundary_mesh = boundary_mesh.extract_cells(boundary_mesh[lstr]>ecs_id)
     ecs_boundary_mesh = boundary_mesh.extract_cells(boundary_mesh[lstr]==ecs_id)
     n_ecs_boundary_points = boundary_mesh.number_of_points - cell_boundary_mesh.number_of_points
+
     results = dict(npoints=mesh.number_of_points,
                   ncompcells=mesh.number_of_cells,
                   ecs_volume=ecs_volume, ecs_surface=ecs_surface,
