@@ -168,6 +168,7 @@ rule evaluateMesh:
         meshstatistic
     conda:
         conda_env
+    threads: 1
     shell:
         """
         python workflow/scripts/evaluate_mesh.py \
@@ -181,6 +182,7 @@ rule takeScreenshot:
         mesh_img
     conda:
         conda_env
+    threads: 1
     shell:
         """
         python workflow/scripts/generate_screenshot.py \
