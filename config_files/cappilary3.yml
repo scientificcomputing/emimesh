@@ -5,7 +5,7 @@ fixed :
     position : "307339-124630-24240"
   processing:
       operation : 
-      - "merge labels='[864691136534887842, 864691135941292148, 864691132616222812]'"
+      - "merge labels='[864691136534887842,864691135941292148,864691132616222812]'"
       - "removeislands minsize=5000"
       - "dilate radius=5"
       - "smooth iterations=2 radius=4"
