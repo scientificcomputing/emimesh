@@ -7,14 +7,14 @@ fixed :
   processing:
     operation : 
       - "removeislands minsize=5000"
-      - "dilate iterations=1 radius=1"
+      - "dilate radius=1"
       - "smooth iterations=1 radius=1"
-      - "erode iterations=1 radius=1"
+      - "erode radius=1"
       - "removeislands minsize=5000"
 raw:
-  size : [5000, 10000, 20000, 40000,]
+  size : [10000] #[5000, 10000, 20000]
 processing: 
   dx : 20
-  ncells : [5, 10, 50, 100, 200, 500, 1000]
+  ncells : [10] #[5,  50, 200, 500]
 meshing:
   envelopsize : [18]

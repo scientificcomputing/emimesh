@@ -2,28 +2,19 @@ name: emimesh
 channels:
   - conda-forge
 dependencies:
-  - python
-  - numpy
-  - vtk=*=*mesa*
   - matplotlib
   - pyvista
-  - pyacvd
   - scikit-image
-  - fenics
   - meshio
-  - dask
-  - k3d
-  - flask
   - dask-image
   - seaborn
-  - zip
+  - pyacvd
   - pip
   - pip:
-    - pyacvd>=0.3
-    - wildmeshing
+    - pytetwild
     - fastremap
     - cloud-volume
     - webknossos
-    - cattrs
     - connected-components-3d
     - cmocean
+    - nbmorph

@@ -4,18 +4,22 @@ fixed :
     cloudpath: "precomputed://gs://iarpa_microns/minnie/minnie65/seg"
     position : "306009-143434-23494"
   processing:
-    roi : 864691136534887842
-    merge : "864691136534887842 864691133311938372 864691133711003153 864691135468246461" #864691132824819233 864691133334749831
+    operation : 
+      - "merge labels='[864691136534887842, 864691133311938372, 864691133711003153, 864691135468246461]'"
+      - "removeislands minsize=5000"
+      - "dilate radius=5"
+      - "smooth iterations=2 radius=4"
+      - "erode radius=1"
+      - "roigenerate labels='[864691136534887842]'"
+      - "roidilate radius=64"
+      - "roiapply"
+      - "erode radius=15 labels='[864691136534887842]'"
+      - "removeislands minsize=5000"
+      - "roierode radius=4"
 raw:
-  mip : 1
+  mip : 0
   size : [7500] 
 processing:
-  ncells : [ 1000 ]
-  smoothiter : [3]
-  smoothradius : [3]
-  expand : [3]
-  shrink : 1
-  dx : 20
-  roidilate: "6-6"
+  dx : 8
 meshing:
-  envelopsize : [8]
+  envelopsize : [5]

@@ -1,5 +1,4 @@
 import json
-import meshio
 import pyvista as pv
 import argparse
 import numpy as np
@@ -12,29 +11,17 @@ def get_values(d):
         else:
             yield v
 
-def mesh_surfaces(csg_tree, eps, stop_quality, max_threads):
-    import wildmeshing as wm
-    tetra = wm.Tetrahedralizer(
-        epsilon=eps,
-        edge_length_r=eps * 50,
-        coarsen=True,
-        stop_quality=stop_quality,
-        max_threads=max_threads,
-        skip_simplify=False,
-    )
-    tetra.load_csg_tree(json.dumps(csg_tree))
+def mesh_surfaces(csg_tree_path, eps, stop_quality, max_threads):
+    from pytetwild import tetrahedralize_csg
     start = time.time()
-    tetra.tetrahedralize()
-    point_array, cell_array, marker = tetra.get_tet_mesh()
-
-    volmesh = pv.from_meshio(
-        meshio.Mesh(
-            point_array, [("tetra", cell_array)], cell_data={"label": [marker.ravel()]}
-        )
-    )
-    volmesh.field_data['runtime'] = time.time() - start
-    volmesh.field_data['threads'] = max_threads
-    return volmesh
+    mesh = tetrahedralize_csg(csg_tree_path, epsilon=eps, edge_length_r=eps*50, 
+                              coarsen=True, stop_energy=stop_quality,
+                              num_threads=max_threads).clean()
+    print("meshing finished!")
+    mesh["label"] = mesh["marker"]
+    mesh.field_data['runtime'] = time.time() - start
+    mesh.field_data['threads'] = max_threads
+    return mesh
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -67,12 +54,13 @@ if __name__ == "__main__":
     roifile = [s for s in surfs if "roi.ply" in s][0]
     roi = pv.read(roifile)
     diag = np.sqrt(3) * roi.volume ** (1 / 3)
-    es = args.envelopsize
-    csgtree = {"operation":"intersection","right":csgtree, "left":roifile}
+    abs_eps = args.envelopsize    
     volmesh = mesh_surfaces(
-        csgtree,
-        eps=es / diag,
+        args.csgtree,
+        eps=abs_eps / diag,
         stop_quality=args.stopquality,
         max_threads=args.max_threads,
     )
     pv.save_meshio(args.output, volmesh)
+    print(volmesh.array_names)
+

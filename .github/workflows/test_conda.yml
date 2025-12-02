@@ -16,20 +16,23 @@ defaults:
 
 jobs:
   test_scripts:
-    runs-on: ubuntu-latest
-    container: ubuntu:latest
+    name: test on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-15-intel, macos-15]
+
 
     steps:
       - uses: actions/checkout@v4
 
-      #   - uses: actions/setup-python@v5
-      #     with:
-      #       python-version: "3.11"
-      - name: Install deps
+      - name: Install Headless Plotting Libs
+        if: runner.os == 'Linux'
         run: |
-          DEBIAN_FRONTEND=noninteractive apt-get update
-          DEBIAN_FRONTEND=noninteractive apt-get install -y gcc unzip make cmake build-essential git libgmp-dev xvfb intel-opencl-icd pocl-opencl-icd
-      #       python -m pip install snakemake
+          sudo apt-get update
+          sudo apt-get install -y libosmesa6 libgl1
+
       - name: Setup conda-forge
         uses: conda-incubator/setup-miniconda@v3
         with:
@@ -43,4 +46,4 @@ jobs:
           conda install snakemake snakemake-storage-plugin-http snakemake-executor-plugin-cluster-generic
       - name: Run snakemake
         run: |
-          export PYOPENCL_COMPILER_OUTPUT=1 && snakemake --use-conda --cores 2 -p --configfile ./config_files/test.yml
+          snakemake --use-conda --cores 2 -p --configfile ./config_files/test.yml

@@ -9,3 +9,4 @@ zipped
 zipped_surf
 .snakemake
 .vscode
+.cache
