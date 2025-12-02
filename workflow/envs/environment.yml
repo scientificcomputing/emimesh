@@ -9,7 +9,6 @@ dependencies:
   - dask-image
   - seaborn
   - pyacvd
-  - zip
   - pip
   - pip:
     - pytetwild
