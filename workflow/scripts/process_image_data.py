@@ -1,7 +1,6 @@
 import numpy as np
 import argparse
 import yaml
-import json
 import time
 import pyvista as pv
 from pathlib import Path
@@ -15,7 +14,6 @@ import cc3d
 import numba
 import nbmorph
 
-numba.set_num_threads(1)
 dask.config.set({"array.chunk-size": "1024 MiB"})
 
 def mergecells(img, labels):
@@ -23,10 +21,14 @@ def mergecells(img, labels):
     img = np.where(np.isin(img, labels), labels[0], img)
     return img
 
-def ncells(img, ncells):
+def ncells(img, ncells, keep_cell_labels=None):
     cell_labels, cell_counts = fastremap.unique(img, return_counts=True)
     cell_labels = cell_labels[np.argsort(cell_counts)]
-    cois = list(cell_labels[-ncells :])
+    if keep_cell_labels is None: cois =[]
+    cois = set(keep_cell_labels)
+    for cid in cell_labels:
+        if len(cois) >= ncells: break
+        cois.add(cid)
     img = np.where(np.isin(img, cois), img, 0)
     return img
     
@@ -99,6 +101,7 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
     n_parallel = args.nworkers
+    numba.set_num_threads(n_parallel)
     print(f"Using {n_parallel} workers...")
     start = time.time()
 
@@ -142,12 +145,13 @@ if __name__ == "__main__":
     operations = parse_operations(args.operation)
     for op, kwargs in operations:
         print(op, kwargs)
-        if "labels" in kwargs.keys():
-            labels = kwargs["labels"]
-            if kwargs.get("allexcept", False):
-                kwargs["labels"] = list(set(remapping.values()) - set(remap(labels)))
-            else:
-                kwargs["labels"] = remap(labels)
+        for k in kwargs.keys():
+            if "label" in k:
+                labels = kwargs[k]
+                if kwargs.get("allexcept", False):
+                    kwargs[k] = list(set(remapping.values()) - set(remap(labels)))
+                else:
+                    kwargs[k] = remap(labels)
 
         if op=="roigenerate":
             roi = np.isin(img, kwargs["labels"])
@@ -155,16 +159,12 @@ if __name__ == "__main__":
         if op=="roiapply":
             img = np.where(roi, img, 0) 
             continue
-        if op=="ncells":
-            img = ncells(img, **kwargs)
-            continue
         if op.startswith("roi"):
             roiop = op[3:]
             roi = opdict[roiop](roi, **kwargs)
         else:
             img =opdict[op](img, **kwargs)
     
-    #img, roi = dask.compute(img, roi, num_workers= args.nworkers)
     print(f"processed! {img.shape}")
     proc_time = time.time()
 
