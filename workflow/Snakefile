@@ -52,9 +52,9 @@ def name2options(name, step):
     for k,val in options.items():
         if isinstance(val, list):
             for v in val:
-                cmd+= f"--{k} {v} "
+                cmd+= f"--{k} {v.replace(" ", "")} "
         else:
-            cmd+= f"--{k} {val} "
+            cmd+= f"--{k} {val.replace(" ", "")} "
     return cmd
 
 rd = expand(raw_str, **config["raw"])
