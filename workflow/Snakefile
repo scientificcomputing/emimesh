@@ -67,7 +67,7 @@ rule all:
     input:
         expand(mesh_img, rawdata=rd,processing=pd, meshing=md, name=name),  
         expand(meshstatistic, rawdata=rd,processing=pd, meshing=md, name=name),
-        expand(mesh_tag_path, rawdata=rd,processing=pd, meshing=md, name=name),
+        #expand(mesh_tag_path, rawdata=rd,processing=pd, meshing=md, name=name),
 
 rule downloadImageData:
     output:
@@ -91,11 +91,10 @@ rule processImageData:
         #imagestatistic,
         outfile=processed_data_path,
     conda:
-        "envs/nbmorph_env.yml"
+        "envs/environment.yml"
     resources:
-        ntasks=10,
+        ntasks=4,
         time=30,
-        gpus=1,
     params:
         options=lambda wildcards: filename2options(wildcards.processing),
         fopt=lambda wildcards: name2options(wildcards.name, "processing")
