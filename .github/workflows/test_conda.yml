@@ -46,4 +46,4 @@ jobs:
           conda install snakemake
       - name: Run snakemake
         run: |
-          snakemake --use-conda --cores 2 --resources serial_lock=1 -p --configfile ./config_files/motta2019.yml
+          snakemake --use-conda --cores 1 --max-jobs-per-second 1 -p --configfile ./config_files/motta2019.yml
