@@ -27,11 +27,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Headless Plotting Libs
-        if: runner.os == 'Linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libosmesa6 libgl1
+      #- name: Install Headless Plotting Libs
+      #  if: runner.os == 'Linux'
+      #  run: |
+      #    sudo apt-get update
+      #    sudo apt-get install -y libosmesa6 libgl1
 
       - name: Setup conda-forge
         uses: conda-incubator/setup-miniconda@v3
@@ -43,7 +43,15 @@ jobs:
           channels: conda-forge,bioconda
           conda-remove-defaults: "true"
           
-      - name: Install snakemake
+      # 1. Install for Linux and Windows (Includes mesalib)
+      - name: Install Missing Tools (Linux/Win)
+        if: runner.os != 'macOS'
+        run: |
+          conda install snakemake mesalib
+
+      # 2. Install for macOS (Excludes mesalib)
+      - name: Install Missing Tools (macOS)
+        if: runner.os == 'macOS'
         run: |
           conda install snakemake
           
