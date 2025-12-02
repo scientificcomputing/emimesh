@@ -36,14 +36,17 @@ jobs:
       - name: Setup conda-forge
         uses: conda-incubator/setup-miniconda@v3
         with:
-          auto-activate-base: true
-          activate-environment: ""
+          environment-file: workflow/envs/environment.yml
+          activate-environment: emimesh 
+          auto-activate-base: false
           miniforge-version: latest
           channels: conda-forge,bioconda
           conda-remove-defaults: "true"
+          
       - name: Install snakemake
         run: |
           conda install snakemake
+          
       - name: Run snakemake
         run: |
-          snakemake --use-conda --cores 1 --retries 3 -p --configfile ./config_files/motta2019.yml
+          snakemake --cores 2 -p --configfile ./config_files/motta2019.yml
