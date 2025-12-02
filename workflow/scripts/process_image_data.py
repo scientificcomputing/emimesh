@@ -77,7 +77,7 @@ def _parse_to_dict(values):
     result = {}
     for value in values:
         k, v = value.split('=')
-        result[k.strip()] = yaml.safe_load(v.strip())
+        result[k.strip(" '")] = yaml.safe_load(v.strip(" '"))
     return result
 
 def parse_operations(ops):
