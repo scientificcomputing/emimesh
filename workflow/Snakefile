@@ -42,7 +42,7 @@ def filename2options(fn):
     pairs = fn.split("_")
     for p in pairs:
         k,v = p.split("+")
-        cmd+= f"--{k} {v} "
+        cmd+= f"--{k} {v.replace(" ", "")} "
     return cmd
 
 def name2options(name, step):
