@@ -130,7 +130,9 @@ def extract_cell_meshes(
     os.system(f"mkdir -p {write_dir}")
     import multiprocessing
     from multiprocessing import Pool
-    multiprocessing.set_start_method("fork")
+    try:
+        multiprocessing.set_start_method("fork") # wont work on windows
+    except ValueError: pass
     with Pool(ncpus) as pool:
         args = [(obj_id, mesh_reduction_factor, taubin_smooth_iter, 
                  f"{write_dir}/{obj_id}.ply") for obj_id in cell_labels]
