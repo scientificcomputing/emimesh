@@ -7,6 +7,9 @@ import argparse
 from pathlib import Path
 from utils import get_bounding_box
 import fastremap
+import sys
+import shutil
+import itertools
 
 from pyvista.core import _vtk_core as _vtk
 from pyvista.core.filters import _get_output, _update_alg
@@ -126,19 +129,24 @@ def extract_cell_meshes(
     global grid
     padded = np.pad(img, 1)
     grid = pv.ImageData(dimensions=padded.shape, spacing=resolution, origin=(0, 0, 0))
-    os.system(f"rm -rf {write_dir}/*")
-    os.system(f"mkdir -p {write_dir}")
-    import multiprocessing
-    from multiprocessing import Pool
-    try:
-        multiprocessing.set_start_method("fork") # wont work on windows
-    except ValueError: pass
-    with Pool(ncpus) as pool:
-        args = [(obj_id, mesh_reduction_factor, taubin_smooth_iter, 
+
+    write_path = Path(write_dir)
+    if write_path.exists():
+        shutil.rmtree(write_path) 
+    write_path.mkdir(parents=True, exist_ok=True)
+
+    args = [(obj_id, mesh_reduction_factor, taubin_smooth_iter, 
                  f"{write_dir}/{obj_id}.ply") for obj_id in cell_labels]
-        surfaces = pool.starmap(extract_surf_id, args)
-        pool.close()
-        pool.join()
+
+    if sys.platform != "win32":
+        import multiprocessing
+        multiprocessing.set_start_method("fork")
+        with multiprocessing.Pool(ncpus) as pool:  
+            surfaces = pool.starmap(extract_surf_id, args)
+            pool.close()
+            pool.join()
+    else:
+        surfaces = list(itertools.starmap(extract_surf_id, args))
     return surfaces
 
 def create_balanced_csg_tree(surface_files):
