@@ -1,6 +1,5 @@
 import argparse
 import pyvista as pv
-import k3d
 from plot_utils import get_screenshot
 import numpy as np
 import matplotlib
@@ -48,19 +47,20 @@ if __name__ == "__main__":
     
     newcmap = cmocean.tools.crop_by_percent(cmocean.cm.curl_r, 5, which='max', N=None)
     get_screenshot(cells, args.output, scalar="label", cmap="curl")
+    
+    #import k3d
+    #ecs = mesh.extract_cells((mesh["label"]==1))
 
-    ecs = mesh.extract_cells((mesh["label"]==1))
-
-    color_map =k3d.paraview_color_maps.Rainbow_Uniform
-    color_map = k3d.paraview_color_maps.Linear_Green_Gr4L
-    cells = cells.cell_data_to_point_data()
-    cells_k3d = k3d.vtk_poly_data(cells.extract_surface(), side="double",
+    #color_map =k3d.paraview_color_maps.Rainbow_Uniform
+    #color_map = k3d.paraview_color_maps.Linear_Green_Gr4L
+    #cells = cells.cell_data_to_point_data()
+    #cells_k3d = k3d.vtk_poly_data(cells.extract_surface(), side="double",
                               #color_attribute=("label", 0, float(cells["label"].max())), 
                               #color_map=color_map, name="cells"
-                              color=hexcolor("limegreen"))
-    ecs_k3d = k3d.vtk_poly_data(ecs.extract_surface(), side="double", color=hexcolor("white"),
-                                opacity=0.8,
-                                name="ecs", wireframe=True)
+    #                          color=hexcolor("limegreen"))
+    #ecs_k3d = k3d.vtk_poly_data(ecs.extract_surface(), side="double", color=hexcolor("white"),
+    #                            opacity=0.8,
+    #                            name="ecs", wireframe=True)
 
     #generate_screenshots([cells_k3d, ecs_k3d], args.output, fov=32)
 
