@@ -77,7 +77,7 @@ rule downloadImageData:
         fopt=lambda wildcards: name2options(wildcards.name, "raw")
     shell:
         """
-        python3 workflow/scripts/download_data.py \
+        python workflow/scripts/download_data.py \
         {params.options} {params.fopt} \
         --output {output.rawdata}
         """
@@ -98,7 +98,7 @@ rule processImageData:
         fopt=lambda wildcards: name2options(wildcards.name, "processing")
     shell:
         """
-        python3 workflow/scripts/process_image_data.py --infile {input.rawdata} \
+        python workflow/scripts/process_image_data.py --infile {input.rawdata} \
         {params.options} {params.fopt} \
         --output {output.outfile} \
         --nworkers {resources.ntasks}
@@ -117,7 +117,7 @@ rule extractSurfaces:
         conda_env
     shell:
         """
-        python3 workflow/scripts/extract_surfaces.py --infile {input.processeddata} --ncpus {resources.ntasks} \
+        python workflow/scripts/extract_surfaces.py --infile {input.processeddata} --ncpus {resources.ntasks} \
         --outdir {output.outdir}
         """
 
@@ -136,14 +136,14 @@ rule generateMesh:
         options=lambda wildcards: filename2options(wildcards.meshing)
     shell:
         """
-        python3 workflow/scripts/generate_mesh.py \
+        python workflow/scripts/generate_mesh.py \
         --csgtree {input.csgtree} \
         {params.options} \
         --output {output.outfile} \
         --max_threads {resources.ntasks} \
         """
 
-#   python3 workflow/scripts/seperate_touching_cells.py --infile {output.outfile} --output {output.outfile}
+#   python workflow/scripts/seperate_touching_cells.py --infile {output.outfile} --output {output.outfile}
 
 
 rule generateSurfaceTags:
@@ -157,7 +157,7 @@ rule generateSurfaceTags:
         time="120:00"
     shell:
         """
-        python3 workflow/scripts/generate_surface_tags.py \
+        python workflow/scripts/generate_surface_tags.py \
         --infile {input.meshfile} --output {output}
         """
 
@@ -170,7 +170,7 @@ rule evaluateMesh:
         conda_env
     shell:
         """
-        python3 workflow/scripts/evaluate_mesh.py \
+        python workflow/scripts/evaluate_mesh.py \
         --infile {input} --output {output}
         """
 
@@ -183,7 +183,7 @@ rule takeScreenshot:
         conda_env
     shell:
         """
-        python3 workflow/scripts/generate_screenshot.py \
+        python workflow/scripts/generate_screenshot.py \
         --infile {input} --output {output}
         """
 
@@ -196,7 +196,7 @@ rule generateAnalysisPlot:
         conda_env
     shell:
         """
-        python3 workflow/scripts/generate_analysis_plots.py \
+        python workflow/scripts/generate_analysis_plots.py \
         --infile {input.infile} --output {output.plotfile}
         """
 
