@@ -28,7 +28,7 @@ def download_cloudvolume(cloud_path, mip, pos, physical_size):
     vol = CloudVolume(
         cloud_path, use_https=True, parallel=8, progress=True, mip=mip, cache=True, bounded=True
     )
-    print(f"data resoltion: {vol.resolution}")
+    print(f"data resolution: {vol.resolution}")
     size = [ps / res for ps, res in zip(physical_size, vol.resolution)]
     size = np.array(size).astype("uint64")
 
