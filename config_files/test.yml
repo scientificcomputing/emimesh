@@ -7,8 +7,8 @@ fixed :
     operation : 
       - "merge labels='[864691136534887842, 864691132131484059, 864691132336155009, 864691132348210676, 864691135791214365, 864691135971392446]'"
       - "removeislands minsize=5000"
-      - "dilate radius=9"
-      - "smooth iterations=3 radius=5"
+      - "dilate radius=5"
+      - "smooth iterations=2 radius=4"
       - "erode radius=1"
       - "roigenerate labels='[864691136534887842]'"
       - "roidilate radius=24"

@@ -3,17 +3,15 @@ fixed :
   raw:
     cloudpath: "precomputed://gs://iarpa_microns/minnie/minnie65/seg"
     position : "189255-171091-22461" # http://tinyurl.com/ycytrm6t
+    mip : 1
   processing:
-      cells : 864691136194301772
+      operation : 
+        - "ncells ncells=1 keep_cell_labels='[864691136194301772]'"
+        - "smooth iterations=1 radius=2"
+        - "erode radius=1"
 raw:
-  mip : 1
-  size : [2500, 5000, 10000] 
+  size : [2500] #, 5000, 10000] 
 processing:
-  ncells : [ 1 ]
-  smoothiter : [1]
-  smoothradius : [2]
-  expand : [1]
-  shrink : 0
   dx : 20
 meshing:
   envelopsize : [8]

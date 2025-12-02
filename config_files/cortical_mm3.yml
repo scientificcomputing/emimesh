@@ -7,9 +7,9 @@ fixed :
   processing:
     operation : 
       - "removeislands minsize=5000"
-      - "dilate iterations=1 radius=1"
+      - "dilate radius=1"
       - "smooth iterations=1 radius=1"
-      - "erode iterations=1 radius=1"
+      - "erode radius=1"
       - "removeislands minsize=5000"
 raw:
   size : [10000] #[5000, 10000, 20000]
