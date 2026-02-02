@@ -28,6 +28,10 @@ readme = "readme.md"
 
 [project.scripts]
 emi-generate-mesh = "emimesh.clients.generate_mesh:main"
+emi-download = "emimesh.clients.download_data:main"
+emi-evaluate-mesh = "emimesh.clients.evaluate_mesh:main"
+emi-extract-surfaces = "emimesh.clients.extract_surfaces:main"
+emi-plot-analysis = "emimesh.clients.analysis_plot:main"
 
 [project.optional-dependencies]
 test = []
