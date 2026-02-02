@@ -1,6 +1,6 @@
-from fenics import *
+from fenics import vertices, cells, Mesh, MeshFunction, XDMFFile
+
 import argparse
-import numpy as np
 
 def seperate_touching_cells(sm):
     cellids = []
