@@ -3,6 +3,7 @@ from pathlib import Path
 from emimesh.utils import np2pv
 from pathlib import Path
 import argparse
+from emimesh.download_data import download_webknossos, download_cloudvolume
 
 def main():
     parser = argparse.ArgumentParser()
