@@ -1,17 +1,14 @@
 name : "astrocyte1"
-fixed : 
-  raw:
-    cloudpath: "precomputed://gs://iarpa_microns/minnie/minnie65/seg"
-    position : "189255-171091-22461" # http://tinyurl.com/ycytrm6t
-    mip : 1
-  processing:
-      operation : 
-        - "ncells ncells=1 keep_cell_labels='[864691136194301772]'"
-        - "smooth iterations=1 radius=2"
-        - "erode radius=1"
 raw:
-  size : [2500] #, 5000, 10000] 
+  cloudpath: "precomputed://gs://iarpa_microns/minnie/minnie65/seg"
+  position : "189255-171091-22461" # http://tinyurl.com/ycytrm6t
+  mip : 1
+  size : 2500
 processing:
   dx : 20
-meshing:
+  operation : 
+    - "ncells ncells=1 keep_cell_labels='[864691136194301772]'"
+    - "smooth iterations=1 radius=2"
+    - "erode radius=1"
+  meshing:
   envelopsize : [8]

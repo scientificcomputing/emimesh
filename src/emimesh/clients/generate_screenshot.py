@@ -54,11 +54,11 @@ def main():
     #color_map =k3d.paraview_color_maps.Rainbow_Uniform
     #color_map = k3d.paraview_color_maps.Linear_Green_Gr4L
     #cells = cells.cell_data_to_point_data()
-    #cells_k3d = k3d.vti_poly_data(cells.extract_surface(), side="double",
+    #cells_k3d = k3d.vtk_poly_data(cells.extract_surface(), side="double",
                               #color_attribute=("label", 0, float(cells["label"].max())), 
                               #color_map=color_map, name="cells"
     #                          color=hexcolor("limegreen"))
-    #ecs_k3d = k3d.vti_poly_data(ecs.extract_surface(), side="double", color=hexcolor("white"),
+    #ecs_k3d = k3d.vtk_poly_data(ecs.extract_surface(), side="double", color=hexcolor("white"),
     #                            opacity=0.8,
     #                            name="ecs", wireframe=True)
 
