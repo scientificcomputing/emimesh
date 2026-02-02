@@ -11,10 +11,11 @@ dependencies:
   - pyacvd
   - pip
   - pip:
-    - pytetwild
-    - fastremap
-    - cloud-volume
-    - webknossos
-    - connected-components-3d
-    - cmocean
-    - nbmorph
+      - pytetwild
+      - fastremap
+      - cloud-volume
+      - webknossos
+      - connected-components-3d
+      - cmocean
+      - nbmorph
+      - -e ../..
