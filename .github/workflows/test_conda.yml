@@ -57,4 +57,4 @@ jobs:
           
       - name: Run snakemake
         run: |
-          snakemake --cores 2 -p --configfile ./config_files/motta2019.yml
+          snakemake --cores 2 -p --configfile ./config_files/test.yml
