@@ -159,7 +159,7 @@ processing:
 
 ## Output
 The output consists of the following directories:
-* raw: The downloaded segmentation as in `.vtk` format, suitable for e.g. paraview
-* processed: The processed image in `.vtk` format
+* raw: The downloaded segmentation as in `.vti` format, suitable for e.g. paraview
+* processed: The processed image in `.vti` format
 * surfaces: The surfaces of the extracted cells in `.ply` format, again suitable for visualization with paraview or usage in other meshing software
 * meshes: The generated volumetric meshes in `.xdmf` format, containing labels for the extracellular space (label 1) and increasing integer values (2,..., N) for all cells. A mapping between the labels and the original cell id in the base segmenation is provided in the `processed/.../imagestatistics.yml`file.

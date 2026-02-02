@@ -2,70 +2,46 @@ import os
 import yaml
 conda_env = "envs/environment.yml"
 
-#configfile: "config_files/cortical_mm3.yml"
-
 if len(config)==0:
     print("Please specify a configfile with 'snakemake --configfile filename'")
     exit()
     
-# setup folder + filename structure for output:
-raw_str = "_".join([k + "+{" +k + "}" for k in config["raw"].keys()])
-processed_str = "_".join([k + "+{" +k + "}" for k in config["processing"].keys()])
-mesh_str = "_".join([k + "+{" +k + "}" for k in config["meshing"].keys()])
 name = config["name"]
 
-raw_dir = "results/{name}/raw/{rawdata}/"
-processed_dir = "results/{name}/processed/{rawdata}/{processing}/"
-surf_dir = "results/{name}/surfaces/{rawdata}/{processing}/"
-mesh_dir = "results/{name}/meshes/{rawdata}/{processing}/{meshing}/"
+raw_dir = "results/{name}/raw/"
+processed_dir = "results/{name}/processed/"
+surf_dir = "results/{name}/surfaces/"
+mesh_dir = "results/{name}/meshes/"
 
-raw_data_path = raw_dir + "raw.vtk"
+raw_data_path = raw_dir + "raw.vti"
 
-processed_data_path = processed_dir + "processed.vtk"
+processed_data_path = processed_dir + "processed.vti"
 csgtree = surf_dir + "csgtree.json"
 cellsizeplot = processed_dir + "cellsizes.png"
 imagestatistic = processed_dir + "imagestatistic.yml"
 
 mesh_path = mesh_dir + "mesh.xdmf"
-mesh_tag_path = mesh_dir + "facets.xdmf"
 meshstatistic = mesh_dir + "meshstatistic.yml"
 mesh_img = mesh_dir + "mesh.png"
 surfaces_dir = directory(surf_dir)
 
-
-ruleorder: generateSurfaceTags > generateMesh
 size_to_ntasks =  lambda size: min(24, int(1 + (size/400)**2))
-size_to_minutes = lambda size: int((size/500)**3 * 120 + 60  )
+size_to_minutes = lambda size: int((size/500)**3 * 120 + 60)
 
-def filename2options(fn):
-    cmd = ""
-    pairs = fn.split("_")
-    for p in pairs:
-        k,v = p.split("+")
-        cmd+= f"--{k} {v} "
-    return cmd
-
-def name2options(name, step):
-    with open(f"config_files/{name}.yml") as infile:
-        options = yaml.load(infile, Loader=yaml.FullLoader)["fixed"].get(step, {})
-    cmd = ""
-    for k,val in options.items():
-        if isinstance(val, list):
-            for v in val:
-                cmd+= f"--{k} {v} "
+def dict_to_optionsstring(d):
+    s = ""
+    for key, value in d.items():
+        if isinstance(value, list):
+            for value_i in value:
+                s += f" --{key} {value_i}"
         else:
-            cmd+= f"--{k} {val} "
-    return cmd
-
-rd = expand(raw_str, **config["raw"])
-pd = expand(processed_str, **config["processing"])
-md = expand(mesh_str, **config["meshing"])
+            s += f" --{key} {value}"
+    return s
 
 rule all:
     input:
-        expand(mesh_img, rawdata=rd,processing=pd, meshing=md, name=name),  
-        expand(meshstatistic, rawdata=rd,processing=pd, meshing=md, name=name),
-        #expand(mesh_tag_path, rawdata=rd,processing=pd, meshing=md, name=name),
+        mesh_img.format(name=name),
+        meshstatistic.format(name=name)
 
 rule downloadImageData:
     output:
@@ -73,12 +49,11 @@ rule downloadImageData:
     conda:
         conda_env
     params:
-        options=lambda wildcards: filename2options(wildcards.rawdata),
-        fopt=lambda wildcards: name2options(wildcards.name, "raw")
+        options=dict_to_optionsstring(config["raw"])
     shell:
         """
-        emi-download_data \
-        {params.options} {params.fopt} \
+        emi-download-data \
+        {params.options} \
         --output {output.rawdata}
         """
 
@@ -91,15 +66,14 @@ rule processImageData:
     conda:
         "envs/environment.yml"
     resources:
-        ntasks=lambda wildcards: size_to_ntasks(int(wildcards.rawdata.split("size+")[-1].split("_")[0]) / int(wildcards.processing.split("dx+")[-1].split("_")[0])),
+        ntasks=lambda wildcards: size_to_ntasks(config["raw"]["size"] / config["processing"]["dx"]),
         time=30,
     params:
-        options=lambda wildcards: filename2options(wildcards.processing),
-        fopt=lambda wildcards: name2options(wildcards.name, "processing")
+        options=dict_to_optionsstring(config["processing"])
     shell:
         """
         emi-process-image-data --infile {input.rawdata} \
-        {params.options} {params.fopt} \
+        {params.options} \
         --output {output.outfile} \
         --nworkers {resources.ntasks}
         """
@@ -112,7 +86,7 @@ rule extractSurfaces:
         csgtree=csgtree
     resources:
         time=120,
-        ntasks=lambda wildcards: size_to_ntasks(int(wildcards.rawdata.split("size+")[-1].split("_")[0]) / int(wildcards.processing.split("dx+")[-1].split("_")[0])),
+        ntasks=lambda wildcards: size_to_ntasks(config["raw"]["size"] / config["processing"]["dx"]),
     conda:
         conda_env
     shell:
@@ -129,11 +103,11 @@ rule generateMesh:
     conda:
         conda_env
     resources:
-        ntasks=lambda wildcards: size_to_ntasks(int(wildcards.rawdata.split("size+")[-1].split("_")[0]) / int(wildcards.processing.split("dx+")[-1].split("_")[0])),
-        time=lambda wildcards: size_to_minutes(int(wildcards.rawdata.split("size+")[-1].split("_")[0]) / int(wildcards.processing.split("dx+")[-1].split("_")[0])),
-    threads: lambda wildcards: size_to_ntasks(int(wildcards.rawdata.split("size+")[-1].split("_")[0]) / int(wildcards.processing.split("dx+")[-1].split("_")[0])),
+        ntasks=lambda wildcards: size_to_ntasks(config["raw"]["size"] / config["processing"]["dx"]),
+        time=lambda wildcards: size_to_minutes(config["raw"]["size"] / config["processing"]["dx"]),
+    threads: lambda wildcards: size_to_ntasks(config["raw"]["size"] / config["processing"]["dx"]),
     params:
-        options=lambda wildcards: filename2options(wildcards.meshing)
+        options=dict_to_optionsstring(config["meshing"])
     shell:
         """
         emi-generate-mesh \
@@ -145,21 +119,6 @@ rule generateMesh:
 
 #   python workflow/scripts/seperate_touching_cells.py --infile {output.outfile} --output {output.outfile}
 
-
-rule generateSurfaceTags:
-    input:
-        meshfile=mesh_path
-    output:
-        mesh_tag_path
-    conda:
-        conda_env
-    resources:
-        time="120:00"
-    shell:
-        """
-        emi-generate-surface-tags \
-        --infile {input.meshfile} --output {output}
-        """
 
 rule evaluateMesh:
     input:
