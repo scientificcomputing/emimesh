@@ -1,6 +1,6 @@
 import argparse
 import pyvista as pv
-from plot_utils import get_screenshot
+from emimesh.plot_utils import get_screenshot
 import numpy as np
 import matplotlib
 import cmocean
