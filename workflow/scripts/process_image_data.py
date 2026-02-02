@@ -92,7 +92,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--infile", help="input data", type=str)
     parser.add_argument(
-        "--output", help="output filename", type=str, default="processeddata.vtk"
+        "--output", help="output filename", type=str, default="processeddata.vti"
     )
     parser.add_argument("--nworkers", help="number of workers", type=int, default=1)
     parser.add_argument("--dx", help="target resolution", type=int, default=None)

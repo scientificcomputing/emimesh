@@ -13,9 +13,9 @@ processed_dir = "results/{name}/processed/"
 surf_dir = "results/{name}/surfaces/"
 mesh_dir = "results/{name}/meshes/"
 
-raw_data_path = raw_dir + "raw.vtk"
+raw_data_path = raw_dir + "raw.vti"
 
-processed_data_path = processed_dir + "processed.vtk"
+processed_data_path = processed_dir + "processed.vti"
 csgtree = surf_dir + "csgtree.json"
 cellsizeplot = processed_dir + "cellsizes.png"
 imagestatistic = processed_dir + "imagestatistic.yml"
