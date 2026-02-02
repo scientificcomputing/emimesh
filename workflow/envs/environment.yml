@@ -14,7 +14,7 @@ dependencies:
       - pytetwild
       - fastremap
       - cloud-volume
-      - webknossos
+      # - webknossos # Needs to unpin it's zipp versioning, ref: https://github.com/scalableminds/webknossos-libs/issues/1421
       - connected-components-3d
       - cmocean
       - nbmorph

@@ -13,7 +13,6 @@ dependencies = [
     "pytetwild",
     "fastremap",
     "cloud-volume",
-    "webknossos",
     "connected-components-3d",
     "cmocean",
     "nbmorph",
@@ -38,7 +37,7 @@ emi-generate-screenshot = "emimesh.clients.generate_screenshot:main"
 [project.optional-dependencies]
 test = []
 dev = ["pdbpp", "ipython", "mypy", "ruff"]
-h5py = ["h5py"]
+webknossos = ["webknossos"]
 docs = [
     "jupyter-book<2.0.0",
     "jupytext",
