@@ -32,7 +32,7 @@ emi-download = "emimesh.clients.download_data:main"
 emi-evaluate-mesh = "emimesh.clients.evaluate_mesh:main"
 emi-extract-surfaces = "emimesh.clients.extract_surfaces:main"
 emi-plot-analysis = "emimesh.clients.analysis_plot:main"
-emi-process-image-data = "emimesh.clients.process-image-data:main"
+emi-process-image-data = "emimesh.clients.process_image_data:main"
 emi-generate-screenshot = "emimesh.clients.generate_screenshot:main"
 
 [project.optional-dependencies]
