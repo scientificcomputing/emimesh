@@ -47,14 +47,18 @@ jobs:
       - name: Install Missing Tools (Linux/Win)
         if: runner.os != 'macOS'
         run: |
-          conda install snakemake mesalib
+          conda install snakemake mesalib pytest
 
       # 2. Install for macOS (Excludes mesalib)
       - name: Install Missing Tools (macOS)
         if: runner.os == 'macOS'
         run: |
-          conda install snakemake
-          
+          conda install snakemake pytest
+
+      - name: Run unit tests
+        run: |
+          python -m pytest tests
+
       - name: Run snakemake
         run: |
           snakemake --cores 2 -p --configfile ./config_files/test.yml
