@@ -1,25 +1,22 @@
 name : "test"
-fixed : 
-  raw:
-    cloudpath: "precomputed://gs://iarpa_microns/minnie/minnie65/seg"
-    position : "232000-166129-21467"
-  processing:
-    operation : 
-      - "merge labels='[864691136534887842,864691132131484059,864691132336155009,864691132348210676,864691135791214365,864691135971392446]'"
-      - "removeislands minsize=5000"
-      - "dilate radius=5"
-      - "smooth iterations=2 radius=4"
-      - "erode radius=1"
-      - "roigenerate labels='[864691136534887842]'"
-      - "roidilate radius=24"
-      - "roiapply"
-      - "erode radius=15 labels='[864691136534887842]'"
-      - "removeislands minsize=5000"
-      - "roierode radius=2"
 raw:
+  cloudpath: "precomputed://gs://iarpa_microns/minnie/minnie65/seg"
+  position : "232000-166129-21467"
   mip : 1
-  size : [7000] 
+  size : 7000
 processing:
   dx : 18
+  operation : 
+    - "merge labels='[864691136534887842,864691132131484059,864691132336155009,864691132348210676,864691135791214365,864691135971392446]'"
+    - "removeislands minsize=5000"
+    - "dilate radius=5"
+    - "smooth iterations=2 radius=4"
+    - "erode radius=1"
+    - "roigenerate labels='[864691136534887842]'"
+    - "roidilate radius=24"
+    - "roiapply"
+    - "erode radius=15 labels='[864691136534887842]'"
+    - "removeislands minsize=5000"
+    - "roierode radius=2"
 meshing:
-  envelopsize : [8]
+  envelopsize : 8
