@@ -91,7 +91,7 @@ rule extractSurfaces:
         conda_env
     shell:
         """
-        emi-extract_surfaces --infile {input.processeddata} --ncpus {resources.ntasks} \
+        emi-extract-surfaces --infile {input.processeddata} --ncpus {resources.ntasks} \
         --outdir {output.outdir}
         """
 

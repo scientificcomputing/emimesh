@@ -2,7 +2,7 @@ import json
 import pyvista as pv
 import argparse
 import numpy as np
-from emimesh import mesh_surfaces
+from emimesh.generate_mesh import mesh_surfaces
 
 def get_values(d):
     for v in d.values():

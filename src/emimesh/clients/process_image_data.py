@@ -2,7 +2,7 @@ import argparse
 import time
 import pyvista as pv
 from pathlib import Path
-from utils import np2pv
+from emimesh.utils import np2pv
 from dask_image.ndinterp import affine_transform
 import dask.array as da
 from functools import partial

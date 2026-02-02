@@ -1,5 +1,5 @@
 import argparse
-import pathlib as Path
+from pathlib import Path
 import pyvista as pv
 
 from emimesh.extract_surfaces import extract_surface, clip_closed_box, extract_cell_meshes,create_balanced_csg_tree
@@ -9,7 +9,8 @@ import fastremap
 from emimesh.utils import get_bounding_box
 import argparse
 
-if __name__ == "__main__":
+
+def main():
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--infile",
@@ -66,3 +67,6 @@ if __name__ == "__main__":
     csg_tree = {"operation":"intersection","right":csg_tree, "left":str(roi_file)}
     with open(outdir / "csgtree.json", "w") as outfile:
         outfile.write(json.dumps(csg_tree))
+
+if __name__ == "__main__":
+    main()

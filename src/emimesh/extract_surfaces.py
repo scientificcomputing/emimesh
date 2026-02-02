@@ -9,7 +9,7 @@ import sys
 import shutil
 import itertools
 
-from pyvista.core import _vtk_core as _vti
+from pyvista.core import _vtk_core as _vtk
 from pyvista.core.filters import _get_output, _update_alg
 from pyvista.core.utilities.helpers import generate_plane
 
@@ -19,9 +19,9 @@ grid = None
 def clip_closed_surface(surf, normal='x', origin=None, tolerance=1e-06, inplace=False, progress_bar=False):
 
     plane = generate_plane(normal, origin)
-    collection = _vti.vtiPlaneCollection()
+    collection = _vtk.vtkPlaneCollection()
     collection.AddItem(plane)
-    alg = _vti.vtiClipClosedSurface()
+    alg = _vtk.vtkClipClosedSurface()
     alg.SetGenerateFaces(True)
     alg.SetInputDataObject(surf)
     alg.SetTolerance(tolerance)
