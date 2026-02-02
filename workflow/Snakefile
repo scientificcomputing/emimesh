@@ -98,7 +98,7 @@ rule processImageData:
         fopt=lambda wildcards: name2options(wildcards.name, "processing")
     shell:
         """
-        python workflow/scripts/process_image_data.py --infile {input.rawdata} \
+        emi-process-image-data --infile {input.rawdata} \
         {params.options} {params.fopt} \
         --output {output.outfile} \
         --nworkers {resources.ntasks}
@@ -157,7 +157,7 @@ rule generateSurfaceTags:
         time="120:00"
     shell:
         """
-        python workflow/scripts/generate_surface_tags.py \
+        emi-generate-surface-tags \
         --infile {input.meshfile} --output {output}
         """
 
@@ -171,7 +171,7 @@ rule evaluateMesh:
     threads: 1
     shell:
         """
-        python workflow/scripts/evaluate_mesh.py \
+        emi-evaluate-mesh \
         --infile {input} --output {output}
         """
 
@@ -185,7 +185,7 @@ rule takeScreenshot:
     threads: 1
     shell:
         """
-        python workflow/scripts/generate_screenshot.py \
+        emi-generate-screenshot \
         --infile {input} --output {output}
         """
 

@@ -8,7 +8,7 @@ import fastremap
 
 hexcolor = lambda c: int(matplotlib.colors.to_hex(c)[1:], base=16)
 
-if __name__ == "__main__":
+def main():
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--infile",
@@ -66,3 +66,6 @@ if __name__ == "__main__":
 
 
     
+
+if __name__ == "__main__":
+    main()
