@@ -11,7 +11,7 @@ import sys
 import shutil
 import itertools
 
-from pyvista.core import _vti_core as _vti
+from pyvista.core import _vtk_core as _vti
 from pyvista.core.filters import _get_output, _update_alg
 from pyvista.core.utilities.helpers import generate_plane
 
