@@ -47,7 +47,7 @@ jobs:
       - name: Install Missing Tools (Linux/Win)
         if: runner.os != 'macOS'
         run: |
-          conda install snakemake mesalib libosmesa mesa-dist-gallium pytest
+          conda install snakemake mesalib libglvnd libegl pytest
 
       # 2. Install for macOS (Excludes mesalib)
       - name: Install Missing Tools (macOS)
