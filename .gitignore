@@ -4,6 +4,8 @@ results
 results/
 logs/
 
+*.egg-info
+
 fTetWild
 zipped
 zipped_surf

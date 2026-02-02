@@ -14,13 +14,15 @@ def mergecells(img, labels):
 
 def ncells(img, ncells, keep_cell_labels=None):
     cell_labels, cell_counts = fastremap.unique(img, return_counts=True)
-    cell_labels = cell_labels[np.argsort(cell_counts)]
-    if keep_cell_labels is None: cois =[]
-    cois = set(keep_cell_labels)
+    cell_labels = cell_labels[np.argsort(cell_counts)][::-1]
+    if keep_cell_labels is None: 
+        cois = set()
+    else:
+        cois = set(keep_cell_labels)
     for cid in cell_labels:
         if len(cois) >= ncells: break
         cois.add(cid)
-    img = np.where(np.isin(img, cois), img, 0)
+    img = np.where(np.isin(img, list(cois)), img, 0)
     return img
     
 def dilate(img, radius, labels=None):

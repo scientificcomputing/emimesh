@@ -3,9 +3,14 @@ import numpy as np
 import fastremap
 
 
-def np2pv(arr, resolution, roimask=None):
+def np2pv(arr, resolution, roimask=None, as_point_data=False):
+    dimensions = arr.shape
+    if not as_point_data: dimensions += + np.array([1, 1, 1])
+
     grid = pv.ImageData(
-        dimensions=arr.shape + np.array((1, 1, 1)), spacing=resolution, origin=(0, 0, 0)
+        dimensions=dimensions, 
+        spacing=resolution, 
+        origin=(0, 0, 0)
     )
     grid[f"data"] = arr.flatten(order="F")
     if roimask is not None:
