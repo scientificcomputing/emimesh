@@ -1,26 +1,23 @@
 name : "cappilary1"
-fixed : 
-  raw:
-    cloudpath: "precomputed://gs://iarpa_microns/minnie/minnie65/seg"
-    position : "232915-165336-20525"
-  processing:
-    operation : 
-      - "merge labels='[864691136534887842,864691135476973891,864691135751005697,864691133070457251,864691136178683094,864691133070456483,864691133070450083,864691133003757151,864691136475845441,864691134032036203,864691131901467286]'"
-      - "dilate radius=4 labels='[864691134581644554,864691135228370458,864691135918336944,864691136475874625,864691136723365629,864691134308859492]'"
-      - "removeislands minsize=5000"
-      - "dilate radius=5"
-      - "smooth iterations=2 radius=4"
-      - "erode radius=1"
-      - "roigenerate labels='[864691136534887842]'"
-      - "roidilate radius=80"
-      - "roiapply"
-      - "erode radius=15 labels='[864691136534887842]'"
-      - "removeislands minsize=5000"
-      - "roierode radius=4"
 raw:
+  cloudpath: "precomputed://gs://iarpa_microns/minnie/minnie65/seg"
+  position : "232915-165336-20525"
   mip : 0
-  size : [7500] 
+  size : 7500
 processing:
   dx : 8
+  operation : 
+    - "merge labels='[864691136534887842,864691135476973891,864691135751005697,864691133070457251,864691136178683094,864691133070456483,864691133070450083,864691133003757151,864691136475845441,864691134032036203,864691131901467286]'"
+    - "dilate radius=4 labels='[864691134581644554,864691135228370458,864691135918336944,864691136475874625,864691136723365629,864691134308859492]'"
+    - "removeislands minsize=5000"
+    - "dilate radius=5"
+    - "smooth iterations=2 radius=4"
+    - "erode radius=1"
+    - "roigenerate labels='[864691136534887842]'"
+    - "roidilate radius=80"
+    - "roiapply"
+    - "erode radius=15 labels='[864691136534887842]'"
+    - "removeislands minsize=5000"
+    - "roierode radius=4"
 meshing:
-  envelopsize : [5]
+  envelopsize : 5

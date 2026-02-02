@@ -1,19 +1,16 @@
 name : "motta2019"
-fixed : 
-  raw:
-    cloudpath: "https://webknossos.org/datasets/l4dense_motta_et_al_demo-5f33d5340100001800e8cddc/view"
-    position : "2816-4352-1792"
-  processing:
-    operation : 
-      - "removeislands minsize=8000"
-      - "dilate radius=1"
-      - "smooth iterations=3 radius=6"
-      - "erode radius=3"
 raw:
+  cloudpath: "https://webknossos.org/datasets/l4dense_motta_et_al_demo-5f33d5340100001800e8cddc/view"
+  position : "2816-4352-1792"
   mip : 2
-  size : [4000] 
+  size : 4000
 processing:
   dx : 18
+  operation : 
+    - "removeislands minsize=8000"
+    - "dilate radius=1"
+    - "smooth iterations=3 radius=6"
+    - "erode radius=3"
 meshing:
-  envelopsize : [12]
+  envelopsize : 12
   
