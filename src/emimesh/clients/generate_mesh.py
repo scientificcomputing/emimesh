@@ -2,7 +2,7 @@ import json
 import pyvista as pv
 import argparse
 import numpy as np
-import time
+from emimesh.generate_mesh import mesh_surfaces
 
 def get_values(d):
     for v in d.values():
@@ -11,19 +11,8 @@ def get_values(d):
         else:
             yield v
 
-def mesh_surfaces(csg_tree_path, eps, stop_quality, max_threads):
-    from pytetwild import tetrahedralize_csg
-    start = time.time()
-    mesh = tetrahedralize_csg(csg_tree_path, epsilon=eps, edge_length_r=eps*50, 
-                              coarsen=True, stop_energy=stop_quality,
-                              num_threads=max_threads).clean()
-    print("meshing finished!")
-    mesh["label"] = mesh["marker"]
-    mesh.field_data['runtime'] = time.time() - start
-    mesh.field_data['threads'] = max_threads
-    return mesh
 
-if __name__ == "__main__":
+def main():
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--csgtree",
@@ -64,3 +53,7 @@ if __name__ == "__main__":
     pv.save_meshio(args.output, volmesh)
     print(volmesh.array_names)
 
+
+
+if __name__ == "__main__":
+    main()

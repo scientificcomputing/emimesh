@@ -21,7 +21,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-15-intel, macos-15]
+        os: [ubuntu-latest, windows-latest, macos-15]
 
 
     steps:
@@ -57,4 +57,4 @@ jobs:
           
       - name: Run snakemake
         run: |
-          snakemake --cores 2 -p --configfile ./config_files/motta2019.yml
+          snakemake --cores 2 -p --configfile ./config_files/test.yml

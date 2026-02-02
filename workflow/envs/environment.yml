@@ -11,10 +11,11 @@ dependencies:
   - pyacvd
   - pip
   - pip:
-    - pytetwild
-    - fastremap
-    - cloud-volume
-    - webknossos
-    - connected-components-3d
-    - cmocean
-    - nbmorph
+      - pytetwild
+      - fastremap
+      - cloud-volume
+      # - webknossos # Needs to unpin it's zipp versioning, ref: https://github.com/scalableminds/webknossos-libs/issues/1421
+      - connected-components-3d
+      - cmocean
+      - nbmorph
+      - -e ../..

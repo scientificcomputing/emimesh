@@ -1,7 +1,5 @@
 import pyvista as pv
 import numpy as np
-import dask
-import dask.array as da
 import fastremap
 
 

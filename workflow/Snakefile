@@ -52,7 +52,7 @@ rule downloadImageData:
         options=dict_to_optionsstring(config["raw"])
     shell:
         """
-        python workflow/scripts/download_data.py \
+        emi-download-data \
         {params.options} \
         --output {output.rawdata}
         """
@@ -72,7 +72,7 @@ rule processImageData:
         options=dict_to_optionsstring(config["processing"])
     shell:
         """
-        python workflow/scripts/process_image_data.py --infile {input.rawdata} \
+        emi-process-image-data --infile {input.rawdata} \
         {params.options} \
         --output {output.outfile} \
         --nworkers {resources.ntasks}
@@ -91,7 +91,7 @@ rule extractSurfaces:
         conda_env
     shell:
         """
-        python workflow/scripts/extract_surfaces.py --infile {input.processeddata} --ncpus {resources.ntasks} \
+        emi-extract-surfaces --infile {input.processeddata} --ncpus {resources.ntasks} \
         --outdir {output.outdir}
         """
 
@@ -110,7 +110,7 @@ rule generateMesh:
         options=dict_to_optionsstring(config["meshing"])
     shell:
         """
-        python workflow/scripts/generate_mesh.py \
+        emi-generate-mesh \
         --csgtree {input.csgtree} \
         {params.options} \
         --output {output.outfile} \
@@ -130,7 +130,7 @@ rule evaluateMesh:
     threads: 1
     shell:
         """
-        python workflow/scripts/evaluate_mesh.py \
+        emi-evaluate-mesh \
         --infile {input} --output {output}
         """
 
@@ -144,7 +144,7 @@ rule takeScreenshot:
     threads: 1
     shell:
         """
-        python workflow/scripts/generate_screenshot.py \
+        emi-generate-screenshot \
         --infile {input} --output {output}
         """
 
@@ -157,7 +157,7 @@ rule generateAnalysisPlot:
         conda_env
     shell:
         """
-        python workflow/scripts/generate_analysis_plots.py \
+        emi-plot-analysis \
         --infile {input.infile} --output {output.plotfile}
         """
 
