@@ -136,7 +136,7 @@ rule generateMesh:
         options=lambda wildcards: filename2options(wildcards.meshing)
     shell:
         """
-        python workflow/scripts/generate_mesh.py \
+        emi-generate-mesh \
         --csgtree {input.csgtree} \
         {params.options} \
         --output {output.outfile} \
