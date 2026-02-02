@@ -41,25 +41,22 @@ Then, emimesh will do the following steps for you:
 A simple configuration file could look like this:
 ```yaml
 name : cortical_mm3 # will only be used for naming the output folder
-fixed : 
-  raw:
-    cloudpath : "precomputed://gs://iarpa_microns/minnie/minnie65/seg" # cloud volume datapath
-    mip : 2 # resolution level (usually 0 corresponds to finest, and higher mips provides upsampled data)
-    position : "225182-107314-22000" # center of the dataset
-  processing:
-    operation : 
-      - "smooth iterations=1 radius=1" # smooth the segmentation before meshing
 raw:
-  size : [5000]  # side length of the dataset (in physical dimension, usually nm)
-processing: 
+  cloudpath : "precomputed://gs://iarpa_microns/minnie/minnie65/seg" # cloud volume datapath
+  mip : 2 # resolution level (usually 0 corresponds to finest, and higher mips provides upsampled data)
+  position : "225182-107314-22000" # center of the dataset
+  size : 5000  # side length of the dataset (in physical dimension, usually nm)
+processing:
   dx : 20        # isotropic voxels size for resampling before processing
+  operation : 
+    - "smooth iterations=1 radius=1" # smooth the segmentation before meshing
 meshing:
   envelopsize : [18] # maximum deviation of the tetrahdral mesh interfaces from the input surfaces (in physical dimension, usually nm).
 ```
 
 ## Configuration Reference
 
-The configuration file is divided into `fixed` parameters (global settings) and specific blocks for `raw`, `processing`, and `meshing` which can be iterated over by Snakemake if provided as lists, resulting in a multiple output meshes. Single values will result in a single mesh.
+The configuration file is divided into `raw`, `processing`, and `meshing`.
 
 ### Raw Data (`raw`)
 Controls data download and extent.
