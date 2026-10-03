@@ -15,7 +15,8 @@ dependencies = [
     "cloud-volume",
     "connected-components-3d",
     "cmocean",
-    "nbmorph>0.3.1",
+    "nbmorph>=0.3.1",
+    "numba",
     "vtk>=9.6.0"
 ]
 name = "EMIMesh"
@@ -36,7 +37,7 @@ emi-process-image-data = "emimesh.clients.process_image_data:main"
 emi-generate-screenshot = "emimesh.clients.generate_screenshot:main"
 
 [project.optional-dependencies]
-test = []
+test = ["pytest", "libigl"]
 dev = ["pdbpp", "ipython", "mypy", "ruff"]
 webknossos = ["webknossos"]
 docs = [
@@ -89,3 +90,23 @@ section-order = [
 
 [tool.ruff.lint.isort.sections]
 "mpi" = ["mpi4py", "petsc4py"]
+
+[tool.pixi.workspace]
+channels = ["conda-forge"]
+platforms = ["linux-64"]
+
+[tool.pixi.pypi-dependencies]
+EMIMesh = { path = ".", editable = true }
+
+[tool.pixi.environments]
+default = { solve-group = "default" }
+all = { features = ["all"], solve-group = "default" }
+dev = { features = ["dev"], solve-group = "default" }
+docs = { features = ["docs"], solve-group = "default" }
+test = { features = ["test"], solve-group = "default" }
+webknossos = { features = ["webknossos"], solve-group = "default" }
+
+[tool.pixi.tasks]
+
+[tool.pixi.feature.test.dependencies]
+igl = ">=2.6.3,<3"
