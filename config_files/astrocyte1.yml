@@ -10,5 +10,6 @@ processing:
     - "ncells ncells=1 keep_cell_labels='[864691136194301772]'"
     - "smooth iterations=1 radius=2"
     - "erode radius=1"
+    - "remove_pinches"
   meshing:
   envelopsize : [8]

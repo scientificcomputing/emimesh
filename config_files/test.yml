@@ -18,5 +18,6 @@ processing:
     - "erode radius=15 labels='[864691136534887842]'"
     - "removeislands minsize=5000"
     - "roierode radius=2"
+    - "remove_pinches"
 meshing:
   envelopsize : 8

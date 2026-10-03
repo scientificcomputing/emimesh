@@ -13,5 +13,6 @@ processing:
     - "smooth iterations=1 radius=1"
     - "erode radius=1"
     - "removeislands minsize=5000"
+    - "remove_pinches"
 meshing:
   envelopsize : 18
