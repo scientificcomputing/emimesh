@@ -1,5 +1,4 @@
 import fastremap
-import igl
 import numpy as np
 import pytetwild
 import pyvista as pv
@@ -13,6 +12,7 @@ from emimesh.surface_smoothing import (
     triangulate_quads,
 )
 from emimesh.utils import np2pv
+from emimesh.winding_number import label_points
 from emimesh.surface_simplification import simplify_surface
 
 path = "precomputed://gs://iarpa_microns/minnie/minnie65/seg_m1300"
@@ -55,33 +55,9 @@ def mark_mesh(mesh, surf):
         mesh: tetrahedralized pyvista.UnstructuredGrid
         surf: multi-label surface mesh with 'boundary_labels' cell data
     """
-    labels = np.unique(surf["boundary_labels"])
-    marker = np.zeros(mesh.n_cells, dtype=np.int32)
-    query_points = np.array(mesh.cell_centers().points)
-    F_global = np.array(surf.faces.reshape(-1, 4)[:, 1:])
-    V_global = np.array(surf.points)
-    blabels = surf.cell_data["boundary_labels"]
-
-    for i, cid in enumerate(labels):
-        if i == 0:
-            continue
-
-        mask_out = blabels[:, 0] == cid
-        F_out = F_global[mask_out]
-
-        mask_in = blabels[:, 1] == cid
-        F_in = F_global[mask_in]
-
-        if len(F_in) > 0:
-            F_in_flipped = F_in[:, [0, 2, 1]]
-            F_label = np.vstack((F_out, F_in_flipped))
-        else:
-            F_label = F_out
-
-        fwn = igl.fast_winding_number(V_global, F_label, query_points)
-        # |fwn| ≈ 1 inside, ≈ 0 outside; abs covers either orientation convention
-        marker = np.where(marker == 0, cid * (np.abs(fwn) > 0.5), marker)
-
+    marker = label_points(
+        surf.points, surf.regular_faces, surf.cell_data["boundary_labels"], mesh.cell_centers().points
+    )
     mesh.cell_data["marker"] = marker
     mesh = mesh.extract_cells(marker > 0)
     return mesh
