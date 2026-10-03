@@ -2,7 +2,7 @@ import argparse
 
 import pyvista as pv
 
-from emimesh.generate_mesh import mesh_surface
+from imagemesh.tetmesh import mesh_surface
 
 
 def main():
@@ -43,9 +43,9 @@ def main():
         surf,
         envelopsize=args.envelopsize,
         simplify_eps=args.simplify_eps,
-        stop_quality=args.stopquality,
+        stop_energy=args.stopquality,
         edge_length_fac=args.edge_length_fac,
-        max_threads=args.max_threads,
+        num_threads=args.max_threads,
     )
     if args.surface_output:
         surf.save(args.surface_output)

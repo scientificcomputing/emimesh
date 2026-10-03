@@ -1,13 +1,12 @@
 """
-Multi-label surface of the processed label image: surface nets
-(contour_labels without smoothing) followed by our constrained smoothing,
-which keeps the points on the bounding box on their box face.
+Multi-label surface of the processed label image: the background becomes the
+ECS, then imagemesh's surface nets with constrained smoothing.
 """
 
 import numpy as np
 import pyvista as pv
 
-from emimesh.surface_smoothing import smooth_surface_net
+from imagemesh.surface import extract_surface as extract_label_surface
 
 ECS_LABEL = 1
 
@@ -38,13 +37,6 @@ def extract_surface(imggrid, smoothing_scale=1.2, iterations=16):
     The displacement of each point is limited to smoothing_scale * dx; dx is
     stored in the field data.
     """
-    grid = prepare_labels(imggrid)
-    surf = grid.contour_labels(
-        "all", smoothing=False, output_mesh_type="quads", background_value=0, scalars="data"
+    return extract_label_surface(
+        prepare_labels(imggrid), smoothing_scale=smoothing_scale, iterations=iterations
     )
-    dx = np.min(grid.spacing)
-    surf = smooth_surface_net(
-        surf, iterations=iterations, distance=dx, scale=smoothing_scale, fix_bounds=True
-    )
-    surf.field_data["dx"] = [dx]
-    return surf

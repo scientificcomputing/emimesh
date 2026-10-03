@@ -26,18 +26,6 @@ def compute_local_width(mesh, ecs_id, cell_ids):
     ecs = ecs.compute_cell_sizes()
     return ecs.cell_data["local_width"], abs(ecs.cell_data["Volume"])
 
-def compute_surface_volume(mesh, cell_ids):
-    mesh = mesh.compute_cell_sizes()
-    mesh["Volume"] = np.abs(mesh["Volume"])
-    assert (mesh["Volume"] > 0).all()
-    volumes, surface_areas = [], []
-    for cid in cell_ids:
-        cell = mesh.extract_cells(np.isin(mesh.cell_data[lstr], [cid]))
-        surf = cell.extract_surface()
-        surface_areas.append(float(surf.compute_cell_sizes()["Area"].sum()))
-        volumes.append(float(cell["Volume"].sum()))
-    return volumes, surface_areas
-
 
 def plot_local_width(width, volume, filename):
     plt.figure(dpi=300)

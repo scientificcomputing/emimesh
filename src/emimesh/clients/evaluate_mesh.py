@@ -3,7 +3,9 @@ import pyvista as pv
 import numpy as np
 
 import yaml
-from emimesh.evaluate_mesh import compute_surface_volume, ecs_id, lstr
+from imagemesh.tetmesh import compute_surface_volume
+
+from emimesh.evaluate_mesh import ecs_id, lstr
 
 def main():
     parser = argparse.ArgumentParser()
@@ -23,8 +25,8 @@ def main():
     cell_ids = list(np.unique(mesh[lstr]))
     cell_ids.remove(ecs_id)
     #ecs_width, ecs_cell_volume = compute_local_width(mesh, ecs_id, cell_ids=cell_ids)
-    cell_volume, cell_surface = compute_surface_volume(mesh, cell_ids)
-    ecs_volume, ecs_surface = compute_surface_volume(mesh, [ecs_id])
+    cell_volume, cell_surface = compute_surface_volume(mesh, cell_ids, label_array=lstr)
+    ecs_volume, ecs_surface = compute_surface_volume(mesh, [ecs_id], label_array=lstr)
     ecs_volume, ecs_surface = ecs_volume[0], ecs_surface[0]
     mesh_volume = ecs_volume + sum(cell_volume)
     ecs_share = ecs_volume / mesh_volume

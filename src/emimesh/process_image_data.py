@@ -2,88 +2,23 @@ import numpy as np
 import yaml
 import fastremap
 import dask
-import cc3d
-import nbmorph
 from pathlib import Path
 
-from emimesh.handles import fill_handles
-from emimesh.pinches import remove_pinches
+from imagemesh.handles import fill_handles
+from imagemesh.morphology import (
+    dilate,
+    erode,
+    mergecells,
+    mode,
+    ncells,
+    removeislands,
+    smooth,
+    upsample,
+    zero_edges,
+)
+from imagemesh.pinches import remove_pinches
 
 dask.config.set({"array.chunk-size": "1024 MiB"})
-
-def mergecells(img, labels):
-    print(f"merging cells: {labels},  ({img.shape})")
-    img = np.where(np.isin(img, labels), labels[0], img)
-    return img
-
-def ncells(img, ncells, keep_cell_labels=None):
-    cell_labels, cell_counts = fastremap.unique(img, return_counts=True)
-    cell_labels = cell_labels[np.argsort(cell_counts)][::-1]
-    if keep_cell_labels is None: 
-        cois = set()
-    else:
-        cois = set(keep_cell_labels)
-    for cid in cell_labels:
-        if len(cois) >= ncells: break
-        cois.add(cid)
-    img = np.where(np.isin(img, list(cois)), img, 0)
-    return img
-    
-def dilate(img, radius, labels=None):
-    print(f"dilating cells,  ({img.shape})")
-    if labels is None:
-        img = nbmorph.dilate_labels_spherical(img, radius=radius)
-    else:
-        vipimg = np.where(np.isin(img, labels), img, 0)
-        vipimg = dilate(vipimg, radius=radius)
-        img = np.where(vipimg, vipimg, img)
-    return img
-
-def erode(img, radius, labels=None, struct_sequence=None):
-    print(f"eroding cells,  ({img.shape})")
-    if struct_sequence is None:
-        # a single diamond step leaves cells touching at voxel corners
-        struct_sequence = "B" if radius == 1 else "DDB"
-    if labels is None:
-        img = nbmorph.erode_labels_spherical(img, radius=radius, struct_sequence=struct_sequence)
-    else:
-        vipimg = np.where(np.isin(img, labels), img, 0)
-        vipimg = erode(vipimg, radius=radius, struct_sequence=struct_sequence)
-        orig_wo_vips = np.where(np.isin(img, labels), 0, img)
-        img = np.where(orig_wo_vips > vipimg, orig_wo_vips, vipimg)
-    return img
-
-def mode(img, iterations=1):
-    print(f"mode,  ({img.shape})")
-    for i in range(iterations): 
-        img = nbmorph.mode_box(img)
-    return img
-
-def zero_edges(img):
-    print(f"zero_edges,  ({img.shape})")
-    img = nbmorph.zero_label_edges_box(img)
-    return img
-
-def upsample(img, factor):
-    from scipy.ndimage import zoom
-    return zoom(img, factor, order=0)
-
-def smooth(img, iterations, radius, labels=None):
-    print(f"smoothing cells,  ({img.shape})")
-    if labels is None:
-        img = nbmorph.smooth_labels_spherical(img, radius=radius,
-                                              iterations=iterations, dilate_radius=radius)
-    else:
-        vipimg = np.where(np.isin(img, labels), img, 0)
-        vipimg = smooth(vipimg, iterations=iterations, radius=radius)
-        # remove labelled cells from original image
-        orig_wo_vips = np.where(np.isin(img, labels), 0, img)
-        # insert smoothed labeled cells in original (overwrite original)
-        img = np.where(vipimg, vipimg, orig_wo_vips)
-    return img
-
-def removeislands(img, minsize):
-    return cc3d.dust(img, threshold=minsize, connectivity=6)
 
 opdict ={"merge": mergecells, "smooth":smooth, "dilate":dilate,
          "erode":erode, "removeislands":removeislands, "ncells":ncells, "mode":mode,
@@ -110,7 +45,7 @@ def process_image(imggrid, dx, operations, ncells=None, num_threads=1):
     from dask_image.ndinterp import affine_transform
     import numba
     from functools import partial
-    from emimesh.utils import np2pv
+    from imagemesh.image import np2pv
 
     numba.set_num_threads(num_threads)
 

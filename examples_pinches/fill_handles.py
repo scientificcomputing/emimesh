@@ -14,8 +14,8 @@ import nbmorph
 import numpy as np
 import pyvista as pv
 
-from emimesh.handles import components_per_label, fill_handles, labels_with_handles
-from emimesh.pinches import count_pinches, remove_pinches
+from imagemesh.handles import components_per_label, fill_handles, labels_with_handles
+from imagemesh.pinches import count_pinches, remove_pinches
 
 
 def to_world(img, ijk):

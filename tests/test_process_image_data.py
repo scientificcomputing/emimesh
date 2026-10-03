@@ -1,62 +1,8 @@
 """Tests for emimesh.process_image_data module."""
-import numpy as np
-from unittest.mock import patch
-from emimesh.process_image_data import (
-    mergecells, ncells, dilate, erode, smooth, removeislands, 
-    opdict, parse_operations, _parse_to_dict
-)
+from imagemesh.handles import fill_handles
+from imagemesh.pinches import remove_pinches
 
-class TestImageOperations:
-    """Test individual image processing operations."""
-    
-    def test_mergecells_basic(self):
-        """Test basic cell merging."""
-        img = np.array([[[1, 1, 2], [1, 3, 2], [4, 4, 4]]], dtype=np.uint32)
-        labels = [1, 2]
-        
-        result = mergecells(img, labels)
-        
-        # All 1s and 2s should become the first label (1)
-        non_zero_values = result[result > 0]
-        unique_values = np.unique(non_zero_values)
-        
-        # Should only have values 1, 3, 4 (1 and 2 merged to 1)
-        assert set(unique_values) == {1, 3, 4}
-        assert 3 in result  # 3 should remain unchanged
-        assert 4 in result  # 4 should remain unchanged
-    
-    def test_ncells_basic(self):
-        """Test keeping only N largest cells."""
-        img = np.array([[[1, 1, 2], [1, 3, 2], [4, 4, 4]]], dtype=np.uint32)
-        
-        result = ncells(img, ncells=2)
-        
-        # Should keep only background (0) and the two largest cells (1 and 4)
-        assert np.allclose(np.unique(result), np.array([0, 1,4]))
-    
-    def test_ncells_with_keep_labels(self):
-        """Test keeping specific cells regardless of size."""
-        img = np.array([[[1, 1, 2], [1, 3, 2], [4, 4, 4]]], dtype=np.uint32)
-        keep_labels = [2]
-        
-        result = ncells(img, ncells=1, keep_cell_labels=keep_labels)
-        
-        # Should only have background (0) and the kept label (2)
-        assert np.allclose(np.unique(result), np.array([0, 2]))
-    
-    def test_removeislands_basic(self):
-        """Test removing small islands."""
-        # Create an image with small and large connected components
-        img = np.zeros((10, 10, 10), dtype=np.uint32)
-        img[2:4, 2:4, 2:4] = 1  # Small island (8 voxels)
-        img[6:9, 6:9, 6:9] = 2  # Large island (27 voxels)
-        
-        result = removeislands(img, minsize=10)
-        
-        # Small island should be removed, large one should remain
-        assert 1 not in np.unique(result)
-        assert 2 in np.unique(result)
-    
+from emimesh.process_image_data import opdict, parse_operations, _parse_to_dict
 
 class TestOperationDictionary:
     """Test the operation dictionary."""
@@ -69,6 +15,10 @@ class TestOperationDictionary:
         for op in expected_ops:
             assert op in opdict
             assert callable(opdict[op])
+
+    def test_topology_repair_operations(self):
+        assert opdict["remove_pinches"] is remove_pinches
+        assert opdict["fill_handles"] is fill_handles
 
 
 class TestParseOperations:
@@ -118,67 +68,3 @@ class TestParseOperations:
         assert result[0][0] == "merge"
         assert result[1][0] == "removeislands"
         assert result[2][0] == "dilate"
-
-
-class TestImageProcessingIntegration:
-    """Integration tests for image processing operations."""
-    
-    def test_dilate_operation(self):
-        """Test dilation operation."""
-        img = np.zeros((10, 10, 10), dtype=np.uint32)
-        img[4:6, 4:6, 4:6] = 1
-        
-        # Mock nbmorph.dilate_labels_spherical to avoid dependency
-        with patch('emimesh.process_image_data.nbmorph') as mock_nbmorph:
-            mock_nbmorph.dilate_labels_spherical.return_value = img  # Return same for simplicity
-            
-            result = dilate(img, radius=2)
-            
-            mock_nbmorph.dilate_labels_spherical.assert_called_once_with(img, radius=2)
-    
-    def test_erode_operation(self):
-        """Test erosion operation."""
-        img = np.ones((10, 10, 10), dtype=np.uint32)
-        
-        # Mock nbmorph.erode_labels_spherical to avoid dependency
-        with patch('emimesh.process_image_data.nbmorph') as mock_nbmorph:
-            mock_nbmorph.erode_labels_spherical.return_value = img  # Return same for simplicity
-            
-            result = erode(img, radius=2)
-            
-            mock_nbmorph.erode_labels_spherical.assert_called_once_with(
-                img, radius=2, struct_sequence="DDB"
-            )
-
-    def test_erode_radius1_separates_corners(self):
-        """erode radius=1 leaves no cells touching at voxel corners."""
-        # two cells separated by the plane x + y + z = 15
-        x, y, z = np.indices((12, 12, 12))
-        img = np.where(x + y + z < 15, 2, 3).astype(np.uint32)
-
-        def contacts(img):
-            n = 0
-            for o in np.ndindex(3, 3, 3):
-                o = np.array(o) - 1
-                a = img[tuple(slice(max(0, -k), 12 - max(0, k)) for k in o)]
-                b = img[tuple(slice(max(0, k), 12 - max(0, -k)) for k in o)]
-                n += ((a > 0) & (b > 0) & (a != b)).sum()
-            return n
-
-        # a diamond step only separates faces and edges
-        assert contacts(erode(img, radius=1, struct_sequence="D")) > 0
-        assert contacts(erode(img, radius=1)) == 0
-    
-    def test_smooth_operation(self):
-        """Test smoothing operation."""
-        img = np.ones((10, 10, 10), dtype=np.uint32)
-        
-        # Mock nbmorph.smooth_labels_spherical to avoid dependency
-        with patch('emimesh.process_image_data.nbmorph') as mock_nbmorph:
-            mock_nbmorph.smooth_labels_spherical.return_value = img  # Return same for simplicity
-            
-            result = smooth(img, iterations=5, radius=3)
-            
-            mock_nbmorph.smooth_labels_spherical.assert_called_once_with(
-                img, radius=3, iterations=5, dilate_radius=3
-            )

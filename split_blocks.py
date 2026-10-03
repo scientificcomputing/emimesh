@@ -5,15 +5,15 @@ import pyvista as pv
 
 from emimesh.download_data import download_cloudvolume
 from emimesh.process_image_data import process_image
-from emimesh.surface_smoothing import (
+from imagemesh.smoothing import (
     bounding_box_mask,
     build_stencils,
     constrained_smooth,
     triangulate_quads,
 )
-from emimesh.utils import np2pv
-from emimesh.winding_number import label_points
-from emimesh.surface_simplification import simplify_surface
+from imagemesh.image import np2pv
+from imagemesh.winding_number import label_points
+from imagemesh.simplification import simplify_surface
 
 path = "precomputed://gs://iarpa_microns/minnie/minnie65/seg_m1300"
 position = (162258, 200928, 20530)

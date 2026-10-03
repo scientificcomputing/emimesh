@@ -1,12 +1,13 @@
-"""Tests for emimesh.extract_surfaces and emimesh.generate_mesh."""
+"""Tests for emimesh.extract_surfaces and the meshing of its surfaces with imagemesh."""
 
 import numpy as np
 import pytest
 
-from emimesh.ecs_share import label_volumes as surface_volumes
+from imagemesh.image import np2pv
+from imagemesh.surface import label_volumes as surface_volumes
+from imagemesh.tetmesh import mesh_surface
+
 from emimesh.extract_surfaces import ECS_LABEL, extract_surface, prepare_labels
-from emimesh.generate_mesh import mesh_surface
-from emimesh.utils import np2pv
 
 DX = 10.0
 

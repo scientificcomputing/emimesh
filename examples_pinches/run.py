@@ -4,7 +4,7 @@ import time
 import numpy as np
 import pyvista as pv
 
-from emimesh.pinches import count_pinches
+from imagemesh.pinches import count_pinches
 from emimesh.process_image_data import process_image
 
 ops = [

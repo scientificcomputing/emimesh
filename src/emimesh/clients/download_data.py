@@ -1,6 +1,6 @@
 import argparse
 from pathlib import Path
-from emimesh.utils import np2pv
+from imagemesh.image import np2pv
 from pathlib import Path
 import argparse
 from emimesh.download_data import download_webknossos, download_cloudvolume

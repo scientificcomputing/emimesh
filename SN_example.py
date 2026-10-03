@@ -1,8 +1,8 @@
 import pyvista as pv
 from emimesh.download_data import download_cloudvolume
 from emimesh.process_image_data import process_image
-from emimesh.utils import np2pv
-from emimesh.winding_number import label_points
+from imagemesh.image import np2pv
+from imagemesh.winding_number import label_points
 import numpy as np
 import pytetwild
 import fastremap

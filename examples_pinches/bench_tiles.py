@@ -12,8 +12,8 @@ import time
 import numpy as np
 import pyvista as pv
 
-from emimesh.handles import fill_handles
-from emimesh.pinches import remove_pinches
+from imagemesh.handles import fill_handles
+from imagemesh.pinches import remove_pinches
 
 if __name__ == "__main__":
     n, workers = int(sys.argv[1]), int(sys.argv[2])

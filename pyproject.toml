@@ -19,7 +19,8 @@ dependencies = [
     "networkx",
     "numba",
     "scipy",
-    "vtk>=9.6.0"
+    "vtk>=9.6.0",
+    "imagemesh",
 ]
 name = "EMIMesh"
 version = "1.0.0.dev0"
@@ -38,6 +39,7 @@ emi-plot-analysis = "emimesh.clients.analysis_plot:main"
 emi-process-image-data = "emimesh.clients.process_image_data:main"
 emi-generate-screenshot = "emimesh.clients.generate_screenshot:main"
 emi-adjust-ecs-share = "emimesh.clients.adjust_ecs_share:main"
+emi-generate-surface-tags = "emimesh.clients.generate_surface_tags:main"
 
 [project.optional-dependencies]
 test = ["pytest", "libigl"]
@@ -100,6 +102,7 @@ platforms = ["linux-64"]
 
 [tool.pixi.pypi-dependencies]
 EMIMesh = { path = ".", editable = true }
+imagemesh = { path = "../imagemesh", editable = true }
 
 [tool.pixi.environments]
 default = { solve-group = "default" }

@@ -1,5 +1,5 @@
 """
-Benchmark emimesh.surface_simplification against pyvista's decimate
+Benchmark imagemesh.simplification against pyvista's decimate
 (vtkQuadricDecimation) at the same number of output faces.
 
 usage: python benchmarks/surface_simplification.py surf.vtk [--eps 0.25 0.5 1]
@@ -13,7 +13,7 @@ import igl
 import numpy as np
 import pyvista as pv
 
-from emimesh.surface_simplification import simplify_surface
+from imagemesh.simplification import simplify_surface
 
 
 def edge_valence_hist(F):
