@@ -32,11 +32,18 @@ def unique_faces(faces):
     return faces[np.sort(idx)]
 
 
-def build_stencils(faces, n_points, optimized=True):
+def build_stencils(faces, n_points, optimized=True, degenerate="full"):
     """
     Row-normalized sparse averaging matrix A, so that A @ x is the stencil
     mean. faces must be the quads of the unsmoothed surface net; duplicate
     faces are counted once.
+
+    degenerate: what to do with opposite corners of a quad whose (optimized)
+    stencils are identical, or one contains the other, e.g. a face with
+    junction edges on all four sides. Such corners are pulled to (nearly) the
+    same point (their distance halves every iteration), and the quad
+    degenerates into two slivers. "full" gives them their full edge
+    neighbourhood, "lock" keeps them in place, None keeps the VTK behaviour.
     """
     faces = unique_faces(np.asarray(faces))
     edges = np.stack([faces, np.roll(faces, -1, axis=1)], axis=-1).reshape(-1, 2)
@@ -53,6 +60,17 @@ def build_stencils(faces, n_points, optimized=True):
         junction = np.zeros(n_points, dtype=bool)
         junction[i[val > 2]] = True
         keep = ~junction[i] | (val > 2)
+        if degenerate is not None:
+            bad = _degenerate_diagonals(faces, i[keep], j[keep], n_points)
+            if degenerate == "full":
+                keep |= bad[i]
+            elif degenerate == "lock":
+                keep &= ~bad[i]
+                i = np.concatenate([i, np.flatnonzero(bad)])
+                j = np.concatenate([j, np.flatnonzero(bad)])
+                keep = np.concatenate([keep, np.ones(bad.sum(), dtype=bool)])
+            else:
+                raise ValueError(f"unknown degenerate={degenerate!r}")
         i, j = i[keep], j[keep]
 
     # a single neighbour locks the point: its stencil is the point itself
@@ -64,6 +82,23 @@ def build_stencils(faces, n_points, optimized=True):
 
     n_nb = np.bincount(i, minlength=n_points)
     return sp.csr_matrix((1.0 / n_nb[i], (i, j)), shape=(n_points, n_points))
+
+
+def _degenerate_diagonals(faces, i, j, n_points):
+    """Mask of the opposite quad corners where the stencil (neighbour set
+    i -> j) of one contains the stencil of the other."""
+    B = sp.csr_matrix((np.ones(len(i), dtype=np.int8), (i, j)), shape=(n_points, n_points))
+    B.sum_duplicates()
+    a = np.concatenate([faces[:, 0], faces[:, 1]])
+    b = np.concatenate([faces[:, 2], faces[:, 3]])
+    Ba, Bb = B[a], B[b]
+    common = Ba.multiply(Bb).getnnz(axis=1)
+    n_min = np.minimum(Ba.getnnz(axis=1), Bb.getnnz(axis=1))
+    same = (common == n_min) & (n_min > 1)
+    bad = np.zeros(n_points, dtype=bool)
+    bad[a[same]] = True
+    bad[b[same]] = True
+    return bad
 
 
 @nb.njit(parallel=True, cache=True)
