@@ -111,9 +111,10 @@ Operations are defined as a list of strings under `processing: operation`. Each 
 | **`merge`** | `labels` (list) | Merges all provided labels into the first label in the list. Useful for combining fragments of the same cell. |
 | **`ncells`** | `ncells` (int)<br>`keep_cell_labels` (list, optional) | Filters the image to keep only the *N* largest cells (by volume). Use `keep_cell_labels` to ensure specific IDs are not filtered out. |
 | **`dilate`** | `radius` (int)<br>`labels` (list, optional) | Expands labels by the specified radius (in pixels). If `labels` is provided, only those specific cells are dilated. |
-| **`erode`** | `radius` (int)<br>`labels` (list, optional) | Shrinks labels by the specified radius. If `labels` is provided, only those specific cells are eroded. |
+| **`erode`** | `radius` (int)<br>`labels` (list, optional)<br>`struct_sequence` (str, optional) | Shrinks labels by the specified radius. If `labels` is provided, only those specific cells are eroded. `struct_sequence` gives the structuring elements per step (`D` diamond, `B` box); the default is `B` for `radius=1` (no cells touching at voxel corners) and `DDB` otherwise. |
 | **`smooth`** | `radius` (int)<br>`iterations` (int)<br>`labels` (list, optional) | smooths the cell boundaries using morphological opening and closing. |
 | **`removeislands`** | `minsize` (int) | Removes disconnected components (dust) smaller than the specified voxel count. |
+| **`remove_pinches`** | `separate_cells` (bool, default true)<br>`max_iterations` (int, default 20) | Repairs voxels that touch only along an edge or at a corner, which would otherwise give non-manifold surfaces (and touching cells) in the surface extraction. Use it as the last operation. |
 
 ### Region of Interest (ROI) Operations
 You can generate a mask (ROI) based on specific cells and apply operations to that mask before applying it back to the image. This is useful for masking out areas surrounding specific cells.
@@ -135,6 +136,7 @@ processing:
     - "dilate radius=1"               # Close small gaps
     - "smooth iterations=1 radius=1"  # Smooth boundaries
     - "erode radius=1"                # Create gaps between cells
+    - "remove_pinches"                # Repair edge/corner contacts
 ```
 
 **2. Targeting a Specific Cell (Astrocyte)**
@@ -145,6 +147,7 @@ processing:
     - "ncells ncells=1 keep_cell_labels='[864691136194301772]'"
     - "smooth iterations=1 radius=2"
     - "erode radius=1"
+    - "remove_pinches"
 ```
 
 **3. Complex ROI Manipulation (Capillary)**
@@ -165,6 +168,8 @@ processing:
     - "roidilate radius=80"
     # Apply mask (delete everything outside the expanded capillary area)
     - "roiapply"
+    # Repair edge/corner contacts (last operation)
+    - "remove_pinches"
 ```
 
 ## Output

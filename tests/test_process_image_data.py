@@ -63,7 +63,8 @@ class TestOperationDictionary:
     
     def test_opdict_contains_all_operations(self):
         """Test that opdict contains all expected operations."""
-        expected_ops = ["merge", "smooth", "dilate", "erode", "removeislands", "ncells"]
+        expected_ops = ["merge", "smooth", "dilate", "erode", "removeislands", "ncells",
+                        "remove_pinches"]
         
         for op in expected_ops:
             assert op in opdict
@@ -145,7 +146,28 @@ class TestImageProcessingIntegration:
             
             result = erode(img, radius=2)
             
-            mock_nbmorph.erode_labels_spherical.assert_called_once_with(img, radius=2)
+            mock_nbmorph.erode_labels_spherical.assert_called_once_with(
+                img, radius=2, struct_sequence="DDB"
+            )
+
+    def test_erode_radius1_separates_corners(self):
+        """erode radius=1 leaves no cells touching at voxel corners."""
+        # two cells separated by the plane x + y + z = 15
+        x, y, z = np.indices((12, 12, 12))
+        img = np.where(x + y + z < 15, 2, 3).astype(np.uint32)
+
+        def contacts(img):
+            n = 0
+            for o in np.ndindex(3, 3, 3):
+                o = np.array(o) - 1
+                a = img[tuple(slice(max(0, -k), 12 - max(0, k)) for k in o)]
+                b = img[tuple(slice(max(0, k), 12 - max(0, -k)) for k in o)]
+                n += ((a > 0) & (b > 0) & (a != b)).sum()
+            return n
+
+        # a diamond step only separates faces and edges
+        assert contacts(erode(img, radius=1, struct_sequence="D")) > 0
+        assert contacts(erode(img, radius=1)) == 0
     
     def test_smooth_operation(self):
         """Test smoothing operation."""

@@ -39,13 +39,16 @@ def dilate(img, radius, labels=None):
         img = np.where(vipimg, vipimg, img)
     return img
 
-def erode(img, radius, labels=None, struct_sequence="DDB"):
+def erode(img, radius, labels=None, struct_sequence=None):
     print(f"eroding cells,  ({img.shape})")
+    if struct_sequence is None:
+        # a single diamond step leaves cells touching at voxel corners
+        struct_sequence = "B" if radius == 1 else "DDB"
     if labels is None:
         img = nbmorph.erode_labels_spherical(img, radius=radius, struct_sequence=struct_sequence)
     else:
         vipimg = np.where(np.isin(img, labels), img, 0)
-        vipimg = erode(vipimg, radius=radius)
+        vipimg = erode(vipimg, radius=radius, struct_sequence=struct_sequence)
         orig_wo_vips = np.where(np.isin(img, labels), 0, img)
         img = np.where(orig_wo_vips > vipimg, orig_wo_vips, vipimg)
     return img
