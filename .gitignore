@@ -21,3 +21,8 @@ zipped_surf
 .pixi/*
 !.pixi/config.toml
 pixi.lock
+
+# FHC_CT exploration
+extern/
+*.vtu
+fhcct_tests/*.npz
