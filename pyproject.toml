@@ -15,7 +15,8 @@ dependencies = [
     "cloud-volume",
     "connected-components-3d",
     "cmocean",
-    "nbmorph>=0.3.1",
+    "nbmorph>=0.3.2",
+    "networkx",
     "numba",
     "vtk>=9.6.0"
 ]

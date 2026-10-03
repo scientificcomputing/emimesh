@@ -6,6 +6,7 @@ import cc3d
 import nbmorph
 from pathlib import Path
 
+from emimesh.handles import fill_handles
 from emimesh.pinches import remove_pinches
 
 dask.config.set({"array.chunk-size": "1024 MiB"})
@@ -83,7 +84,8 @@ def removeislands(img, minsize):
 
 opdict ={"merge": mergecells, "smooth":smooth, "dilate":dilate,
          "erode":erode, "removeislands":removeislands, "ncells":ncells, "mode":mode,
-         "zero_edges":zero_edges, "upsample":upsample, "remove_pinches":remove_pinches}
+         "zero_edges":zero_edges, "upsample":upsample, "remove_pinches":remove_pinches,
+         "fill_handles":fill_handles}
 
 def _parse_to_dict(values):
     result = {}
