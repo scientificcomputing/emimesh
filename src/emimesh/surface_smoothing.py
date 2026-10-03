@@ -17,6 +17,7 @@ vtkConstrainedSmoothingFilter:
   sphere of radius `distance`.
 """
 
+import numba as nb
 import numpy as np
 import pyvista as pv
 import scipy.sparse as sp
@@ -24,7 +25,10 @@ import scipy.sparse as sp
 
 def unique_faces(faces):
     """Faces with duplicates (same vertex set, any order) removed."""
-    _, idx = np.unique(np.sort(faces, axis=1), axis=0, return_index=True)
+    s = np.ascontiguousarray(np.sort(faces, axis=1))
+    # one void scalar per row: 1d np.unique is much faster than axis=0
+    key = s.view(np.dtype((np.void, s.dtype.itemsize * s.shape[1]))).ravel()
+    _, idx = np.unique(key, return_index=True)
     return faces[np.sort(idx)]
 
 
@@ -36,7 +40,9 @@ def build_stencils(faces, n_points, optimized=True):
     """
     faces = unique_faces(np.asarray(faces))
     edges = np.stack([faces, np.roll(faces, -1, axis=1)], axis=-1).reshape(-1, 2)
-    edges, valence = np.unique(np.sort(edges, axis=1), axis=0, return_counts=True)
+    edges = np.sort(edges, axis=1).astype(np.int64)
+    key, valence = np.unique(edges[:, 0] * n_points + edges[:, 1], return_counts=True)
+    edges = np.column_stack([key // n_points, key % n_points])
 
     i = np.concatenate([edges[:, 0], edges[:, 1]])
     j = np.concatenate([edges[:, 1], edges[:, 0]])
@@ -60,6 +66,38 @@ def build_stencils(faces, n_points, optimized=True):
     return sp.csr_matrix((1.0 / n_nb[i], (i, j)), shape=(n_points, n_points))
 
 
+@nb.njit(parallel=True, cache=True)
+def _smooth_step(indptr, indices, data, x0, x, xn, relaxation, d2, fixed):
+    """One constrained Jacobi iteration xn <- x + relaxation * (A @ x - x) with A
+    in CSR format; returns max |xn - x|."""
+    moved = 0.0
+    for i in nb.prange(len(x)):
+        a0 = a1 = a2 = 0.0
+        for k in range(indptr[i], indptr[i + 1]):
+            j, w = indices[k], data[k]
+            a0 += w * x[j, 0]
+            a1 += w * x[j, 1]
+            a2 += w * x[j, 2]
+        y0 = x[i, 0] + relaxation * (a0 - x[i, 0])
+        y1 = x[i, 1] + relaxation * (a1 - x[i, 1])
+        y2 = x[i, 2] + relaxation * (a2 - x[i, 2])
+        if fixed[i, 0]:
+            y0 = x0[i, 0]
+        if fixed[i, 1]:
+            y1 = x0[i, 1]
+        if fixed[i, 2]:
+            y2 = x0[i, 2]
+        u0, u1, u2 = y0 - x0[i, 0], y1 - x0[i, 1], y2 - x0[i, 2]
+        r2 = u0 * u0 + u1 * u1 + u2 * u2
+        if r2 > d2:
+            f = np.sqrt(d2 / r2)
+            y0, y1, y2 = x0[i, 0] + u0 * f, x0[i, 1] + u1 * f, x0[i, 2] + u2 * f
+        xn[i, 0], xn[i, 1], xn[i, 2] = y0, y1, y2
+        m = max(abs(y0 - x[i, 0]), abs(y1 - x[i, 1]), abs(y2 - x[i, 2]))
+        moved = max(moved, m)
+    return moved
+
+
 def constrained_smooth(
     points, A, iterations=16, relaxation=0.5, distance=1.0, convergence=0.0, fixed=None
 ):
@@ -69,19 +107,16 @@ def constrained_smooth(
     fixed: optional (n_points, 3) bool mask of coordinates that must not move,
     e.g. fixed[k, 2] = True keeps point k in its z-plane.
     """
-    x0 = np.asarray(points, dtype=np.float64)
+    x0 = np.ascontiguousarray(points, dtype=np.float64)
     x = x0.copy()
-    d2 = distance**2
+    A = sp.csr_matrix(A)
+    if fixed is None:
+        fixed = np.zeros(x.shape, dtype=bool)
+    fixed = np.ascontiguousarray(fixed, dtype=bool)
+    xn = np.empty_like(x)
     for _ in range(iterations):
-        xn = x + relaxation * (A @ x - x)
-        if fixed is not None:
-            xn[fixed] = x0[fixed]
-        disp = xn - x0
-        r2 = np.einsum("ij,ij->i", disp, disp)
-        over = r2 > d2
-        xn[over] = x0[over] + disp[over] * np.sqrt(d2 / r2[over])[:, None]
-        moved = np.abs(xn - x).max()
-        x = xn
+        moved = _smooth_step(A.indptr, A.indices, A.data, x0, x, xn, relaxation, distance**2, fixed)
+        x, xn = xn, x
         if moved <= convergence:
             break
     return x

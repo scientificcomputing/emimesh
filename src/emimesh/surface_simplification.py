@@ -216,20 +216,23 @@ def _vertex_faces(F, nv):
     return ptr, idx // 3
 
 
-@nb.njit(cache=True)
-def _quadrics(V, F, nv):
+@nb.njit(parallel=True, cache=True)
+def _quadrics(V, F, vf_ptr, vf_idx):
     """Area weighted plane quadrics, accumulated on the vertices."""
+    nv = len(vf_ptr) - 1
     Q = np.zeros((nv, 4, 4))
-    for f in range(len(F)):
-        a, b, c = F[f, 0], F[f, 1], F[f, 2]
-        nx, ny, nz = _tri_normal(V, a, b, c)
-        n2 = np.sqrt(nx * nx + ny * ny + nz * nz)
-        if n2 == 0.0:
-            continue
-        p = np.array([nx / n2, ny / n2, nz / n2, 0.0])
-        p[3] = -(p[0] * V[a, 0] + p[1] * V[a, 1] + p[2] * V[a, 2])
-        w = 0.5 * n2
-        for x in (a, b, c):
+    # gathered per vertex, in the same (face) order as a scatter over the faces
+    for x in nb.prange(nv):
+        for jj in range(vf_ptr[x], vf_ptr[x + 1]):
+            f = vf_idx[jj]
+            a, b, c = F[f, 0], F[f, 1], F[f, 2]
+            nx, ny, nz = _tri_normal(V, a, b, c)
+            n2 = np.sqrt(nx * nx + ny * ny + nz * nz)
+            if n2 == 0.0:
+                continue
+            p0, p1, p2 = nx / n2, ny / n2, nz / n2
+            p = (p0, p1, p2, -(p0 * V[a, 0] + p1 * V[a, 1] + p2 * V[a, 2]))
+            w = 0.5 * n2
             for i in range(4):
                 for j in range(4):
                     Q[x, i, j] += w * p[i] * p[j]
@@ -301,6 +304,14 @@ def _feature_degree(F, patch, nv):
     return np.bincount(feat // nv, minlength=nv) + np.bincount(feat % nv, minlength=nv)
 
 
+def _patches(labels):
+    """Label pair of each face, independent of the orientation."""
+    s = np.sort(labels, axis=1).astype(np.int64)
+    # a 1d key of the pair is much faster to unique than the rows
+    _, patch = np.unique(s[:, 0] * (s[:, 1].max() + 1) + s[:, 1], return_inverse=True)
+    return patch.ravel().astype(np.int64)
+
+
 def _plane_masks(V, tol):
     """Bit mask of the bounding box planes each vertex lies on."""
     lo, hi = V.min(axis=0), V.max(axis=0)
@@ -311,32 +322,50 @@ def _plane_masks(V, tol):
     return mask
 
 
-@nb.njit(cache=True)
-def _vertex_normals(V, F, sgn, nv):
+@nb.njit(parallel=True, cache=True)
+def _vertex_normals(V, F, sgn, vf_ptr, vf_idx):
     """Unit vertex normals of the faces oriented by sgn."""
+    nv = len(vf_ptr) - 1
     N = np.zeros((nv, 3))
-    for f in range(len(F)):
-        nx, ny, nz = _tri_normal(V, F[f, 0], F[f, 1], F[f, 2])
-        for x in F[f]:
+    for x in nb.prange(nv):
+        for jj in range(vf_ptr[x], vf_ptr[x + 1]):
+            f = vf_idx[jj]
+            nx, ny, nz = _tri_normal(V, F[f, 0], F[f, 1], F[f, 2])
             N[x, 0] += sgn[f] * nx
             N[x, 1] += sgn[f] * ny
             N[x, 2] += sgn[f] * nz
-    for i in range(nv):
-        n = np.sqrt(N[i, 0] ** 2 + N[i, 1] ** 2 + N[i, 2] ** 2)
+        n = np.sqrt(N[x, 0] ** 2 + N[x, 1] ** 2 + N[x, 2] ** 2)
         if n > 0:
-            N[i] /= n
+            N[x] /= n
     return N
 
 
-def _oriented_normals(V, F, sgn):
-    """Unit face normals, times sgn."""
-    n = np.cross(V[F[:, 1]] - V[F[:, 0]], V[F[:, 2]] - V[F[:, 0]])
-    return np.ascontiguousarray(
-        sgn[:, None] * n / np.maximum(np.linalg.norm(n, axis=1), 1e-300)[:, None]
-    )
+@nb.njit(parallel=True, cache=True)
+def _face_geometry(V, F, sgn):
+    """
+    Oriented unit normal, centroid and bounding sphere radius (around the
+    centroid) of each face as rows of gin, and twice the face areas.
+    """
+    gin = np.empty((len(F), 7))
+    area2 = np.empty(len(F))
+    for f in nb.prange(len(F)):
+        a, b, c = F[f, 0], F[f, 1], F[f, 2]
+        nx, ny, nz = _tri_normal(V, a, b, c)
+        n = np.sqrt(nx * nx + ny * ny + nz * nz)
+        area2[f] = n
+        n = max(n, 1e-300)
+        gin[f, 0], gin[f, 1], gin[f, 2] = sgn[f] * nx / n, sgn[f] * ny / n, sgn[f] * nz / n
+        for d in range(3):
+            gin[f, 3 + d] = (V[a, d] + V[b, d] + V[c, d]) / 3.0
+        r = 0.0
+        for x in (a, b, c):
+            dx, dy, dz = V[x, 0] - gin[f, 3], V[x, 1] - gin[f, 4], V[x, 2] - gin[f, 5]
+            r = max(r, np.sqrt(dx * dx + dy * dy + dz * dz))
+        gin[f, 6] = r
+    return gin, area2
 
 
-def _sample_points(V, F, patch, sgn, cls, vf_ptr, vf_idx, centroids):
+def _sample_points(V, F, patch, sgn, cls, vf_ptr, vf_idx, gin, centroids):
     """
     Points of the input that the output must approximate, with the label pair
     (patch) and unit normal (oriented by the labels) they must be
@@ -344,20 +373,19 @@ def _sample_points(V, F, patch, sgn, cls, vf_ptr, vf_idx, centroids):
     curves have patch -1 and are only checked for their distance. pface is the
     input face of a centroid (-1 for vertices).
     """
-    nv = len(V)
     first_face = vf_idx[vf_ptr[:-1].clip(max=len(vf_idx) - 1)]
     used = np.diff(vf_ptr) > 0
     vid = np.flatnonzero(used)
     P = [V[vid]]
     owner = [first_face[vid]]
     ppatch = [np.where(cls[vid] == INTERIOR, patch[first_face[vid]], -1)]
-    pn = [_vertex_normals(V, F, sgn, nv)[vid]]
+    pn = [_vertex_normals(V, F, sgn, vf_ptr, vf_idx)[vid]]
     pface = [np.full(len(vid), -1)]
     if centroids:
-        P.append(V[F].mean(axis=1))
+        P.append(gin[:, 3:6])
         owner.append(np.arange(len(F)))
         ppatch.append(patch)
-        pn.append(_oriented_normals(V, F, sgn))
+        pn.append(gin[:, :3])
         pface.append(np.arange(len(F)))
     return (
         np.ascontiguousarray(np.vstack(P)),
@@ -978,30 +1006,25 @@ def _propose(
 
 
 @nb.njit(cache=True)
-def _select(target, cost, vf_ptr, vf_idx, nf):
+def _select(target, cost, F, vf_ptr, vf_idx):
     """
     Greedy maximal set of proposals u -> target[u] with disjoint face stars
     (faces around u and v), in order of increasing cost.
     """
     cu = np.flatnonzero(target >= 0)
-    locked = np.zeros(nf, np.bool_)
+    # the stars of u' -> v' and of an accepted u -> v share a face iff u' or
+    # v' is a vertex of a face around u or v, so only these are marked
+    covered = np.zeros(len(vf_ptr) - 1, np.bool_)
     win = np.zeros(len(cu), np.bool_)
     for i in np.argsort(cost[cu]):
         u, v = cu[i], target[cu[i]]
-        free = True
-        for x in (u, v):
-            for jj in range(vf_ptr[x], vf_ptr[x + 1]):
-                if locked[vf_idx[jj]]:
-                    free = False
-                    break
-            if not free:
-                break
-        if not free:
+        if covered[u] or covered[v]:
             continue
         win[i] = True
         for x in (u, v):
             for jj in range(vf_ptr[x], vf_ptr[x + 1]):
-                locked[vf_idx[jj]] = True
+                g = vf_idx[jj]
+                covered[F[g, 0]] = covered[F[g, 1]] = covered[F[g, 2]] = True
     return cu[win]
 
 
@@ -1073,6 +1096,164 @@ def _apply(
     return ok
 
 
+@nb.njit(parallel=True, cache=True)
+def _dilate(mask, F, vf_ptr, vf_idx):
+    """The vertices of the faces with a vertex in mask."""
+    out = np.zeros(len(mask), np.bool_)
+    for x in nb.prange(len(mask)):
+        for jj in range(vf_ptr[x], vf_ptr[x + 1]):
+            g = vf_idx[jj]
+            if mask[F[g, 0]] or mask[F[g, 1]] or mask[F[g, 2]]:
+                out[x] = True
+                break
+    return out
+
+
+@nb.njit(cache=True)
+def _cumsum(a):
+    for i in range(len(a) - 1):
+        a[i + 1] += a[i]
+
+
+@nb.njit(parallel=True, cache=True)
+def _collapse(wu, wv, F, patch, sgn, fid, owner, vf_ptr, vf_idx, pf_ptr, pf_idx, moved):
+    """
+    Substitute u -> v for the accepted collapses, drop the collapsed faces and
+    renumber the faces (and the owners of the points, in place). The vertex ->
+    face and face -> point CSR are updated instead of rebuilt: only the faces
+    in the stars of u and v change. Also returns the vertices whose proposals
+    must be recomputed.
+    """
+    nv, nf = len(vf_ptr) - 1, len(F)
+    # role 1 for u, 2 for v, and the other vertex of the collapse
+    role = np.zeros(nv, np.int8)
+    partner = np.empty(nv, np.int64)
+    # collapse of the faces in the stars of u and v (disjoint), else -1
+    coll = np.empty(nf, np.int64)
+    for f in nb.prange(nf):
+        coll[f] = -1
+    for i in nb.prange(len(wu)):
+        u, v = wu[i], wv[i]
+        role[u], role[v] = 1, 2
+        partner[u], partner[v] = v, u
+        for x in (u, v):
+            for jj in range(vf_ptr[x], vf_ptr[x + 1]):
+                coll[vf_idx[jj]] = i
+
+    # the faces that are kept (not degenerate after the substitution)
+    keep = np.empty(nf, np.bool_)
+    for f in nb.prange(nf):
+        a, b, c = F[f, 0], F[f, 1], F[f, 2]
+        if coll[f] >= 0:
+            a = partner[a] if role[a] == 1 else a
+            b = partner[b] if role[b] == 1 else b
+            c = partner[c] if role[c] == 1 else c
+        keep[f] = a != b and b != c and c != a
+    new_id = np.empty(nf, np.int64)
+    n = 0
+    for f in range(nf):
+        new_id[f] = n if keep[f] else -1
+        n += keep[f]
+    F2 = np.empty((n, 3), np.int64)
+    patch2 = np.empty(n, np.int64)
+    sgn2 = np.empty(n)
+    fid2 = np.empty(n, np.int64)
+    for f in nb.prange(nf):
+        g = new_id[f]
+        if g < 0:
+            continue
+        for k in range(3):
+            x = F[f, k]
+            F2[g, k] = partner[x] if role[x] == 1 else x
+        patch2[g], sgn2[g], fid2[g] = patch[f], sgn[f], fid[f]
+    for j in nb.prange(len(owner)):
+        owner[j] = new_id[owner[j]]
+
+    # faces around x: the kept ones before, merged with those of u for x = v
+    vf_ptr2 = np.empty(nv + 1, np.int64)
+    vf_ptr2[0] = 0
+    for x in nb.prange(nv):
+        c = 0
+        if role[x] != 1:
+            for jj in range(vf_ptr[x], vf_ptr[x + 1]):
+                c += keep[vf_idx[jj]]
+            if role[x] == 2:
+                y = partner[x]
+                for jj in range(vf_ptr[y], vf_ptr[y + 1]):
+                    c += keep[vf_idx[jj]]
+        vf_ptr2[x + 1] = c
+    _cumsum(vf_ptr2)
+    vf_idx2 = np.empty(vf_ptr2[nv], np.int64)
+    for x in nb.prange(nv):
+        if role[x] == 1:
+            continue
+        i, ie = vf_ptr[x], vf_ptr[x + 1]
+        j = je = 0
+        if role[x] == 2:
+            j, je = vf_ptr[partner[x]], vf_ptr[partner[x] + 1]
+        pos = vf_ptr2[x]
+        while i < ie or j < je:  # both are sorted
+            if j >= je or (i < ie and vf_idx[i] <= vf_idx[j]):
+                f = vf_idx[i]
+                i += 1
+            else:
+                f = vf_idx[j]
+                j += 1
+            if keep[f]:
+                vf_idx2[pos] = new_id[f]
+                pos += 1
+
+    # points per face: unchanged outside the stars, and the points of the
+    # stars of u and v are owned by the new star of v (the order of the points
+    # of a face does not matter)
+    pf_ptr2 = np.zeros(n + 1, np.int64)
+    for f in nb.prange(nf):
+        if keep[f] and coll[f] < 0:
+            pf_ptr2[new_id[f] + 1] = pf_ptr[f + 1] - pf_ptr[f]
+    for i in nb.prange(len(wu)):
+        u, v = wu[i], wv[i]
+        for x in (u, v):
+            for jj in range(vf_ptr[x], vf_ptr[x + 1]):
+                f = vf_idx[jj]
+                if (jj > vf_ptr[x] and vf_idx[jj - 1] == f) or (
+                    x == v and (F[f, 0] == u or F[f, 1] == u or F[f, 2] == u)
+                ):
+                    continue  # counted before
+                for q in range(pf_ptr[f], pf_ptr[f + 1]):
+                    pf_ptr2[owner[pf_idx[q]] + 1] += 1
+    _cumsum(pf_ptr2)
+    pf_idx2 = np.empty(pf_ptr2[n], np.int64)
+    pos = pf_ptr2[:-1].copy()
+    for f in nb.prange(nf):
+        if keep[f] and coll[f] < 0:
+            g = new_id[f]
+            for q in range(pf_ptr[f], pf_ptr[f + 1]):
+                pf_idx2[pos[g] + q - pf_ptr[f]] = pf_idx[q]
+    for i in nb.prange(len(wu)):
+        u, v = wu[i], wv[i]
+        for x in (u, v):
+            for jj in range(vf_ptr[x], vf_ptr[x + 1]):
+                f = vf_idx[jj]
+                if (jj > vf_ptr[x] and vf_idx[jj - 1] == f) or (
+                    x == v and (F[f, 0] == u or F[f, 1] == u or F[f, 2] == u)
+                ):
+                    continue
+                for q in range(pf_ptr[f], pf_ptr[f + 1]):
+                    g = owner[pf_idx[q]]
+                    pf_idx2[pos[g]] = pf_idx[q]
+                    pos[g] += 1
+
+    # reactivate the vertices whose neighbourhood changed: all faces around v
+    # changed (their owned points, and with a moved v their geometry)
+    touched = _dilate(role == 2, F2, vf_ptr2, vf_idx2)
+    if moved:
+        # the checks of moved vertices also look at the faces next to the
+        # modified ones
+        touched = _dilate(touched, F2, vf_ptr2, vf_idx2)
+    dirty = _dilate(touched, F2, vf_ptr2, vf_idx2)
+    return F2, patch2, sgn2, fid2, vf_ptr2, vf_idx2, pf_ptr2, pf_idx2, dirty
+
+
 # --------------------------------------------------------------------------
 # driver
 # --------------------------------------------------------------------------
@@ -1138,8 +1319,7 @@ def simplify_surface(
     nv = len(V)
 
     # label pair of each face, independent of the orientation
-    _, patch = np.unique(np.sort(labels, axis=1), axis=0, return_inverse=True)
-    patch = patch.ravel().astype(np.int64)
+    patch = _patches(labels)
 
     vf_ptr, vf_idx = _vertex_faces(F, nv)
     cls = _classify(F, vf_ptr, vf_idx, _feature_degree(F, patch, nv))
@@ -1147,22 +1327,16 @@ def simplify_surface(
         cls[np.asarray(fixed, dtype=bool)] = CORNER
     diag = np.linalg.norm(np.ptp(V, axis=0))
     planes = _plane_masks(V, 1e-9 * diag)
-    Q = _quadrics(V, F, nv)
+    Q = _quadrics(V, F, vf_ptr, vf_idx)
     # orientation of each face relative to its label pair
     sgn = np.where(labels[:, 0] > labels[:, 1], -1.0, 1.0)
+    # input faces: oriented unit normal, centroid, bounding sphere radius
+    gin, area2 = _face_geometry(V, F, sgn)
     P, owner, ppatch, pnormal, pface = _sample_points(
-        V, F, patch, sgn, cls, vf_ptr, vf_idx, sample_centroids
+        V, F, patch, sgn, cls, vf_ptr, vf_idx, gin, sample_centroids
     )
     Vin, Fin, patch_in = (V.copy() if qem else V), F.copy(), patch.copy()
-    # input faces: oriented unit normal, centroid, bounding sphere radius
-    cen = V[F].mean(axis=1)
-    rad = np.linalg.norm(V[F] - cen[:, None], axis=2).max(axis=1)
-    gin = np.ascontiguousarray(np.hstack([_oriented_normals(V, F, sgn), cen, rad[:, None]]))
-
-    mean_area = (
-        0.5
-        * np.linalg.norm(np.cross(V[F[:, 1]] - V[F[:, 0]], V[F[:, 2]] - V[F[:, 0]]), axis=1).mean()
-    )
+    mean_area = 0.5 * area2.mean()
     params = (
         float(epsilon) ** 2,
         float(np.cos(np.deg2rad(max_angle))),
@@ -1184,14 +1358,12 @@ def simplify_surface(
             f"{n_cls[INTERIOR]} interior / {n_cls[CURVE]} curve / {n_cls[CORNER]} corner vertices"
         )
 
-    timing = dict(csr=0.0, propose=0.0, select=0.0, apply=0.0, update=0.0)
-    # dynamic scheduling, the work per vertex varies a lot
-    chunksize = nb.set_parallel_chunksize(16)
+    timing = dict(propose=0.0, select=0.0, apply=0.0, update=0.0)
+    # input face of each face
+    fid = np.arange(len(F))
+    pf_ptr, pf_idx = _csr(owner, len(F))
     for it in range(max_rounds):
         tr = time.perf_counter()
-        vf_ptr, vf_idx = _vertex_faces(F, nv)
-        pf_ptr, pf_idx = _csr(owner, len(F))
-        tr = _lap(timing, "csr", tr)
         common = (
             V,
             F,
@@ -1212,45 +1384,28 @@ def simplify_surface(
             cls,
             planes,
         )
-        _propose(*common, Q, dirty, qem, *params, lw, owner, target, tpos, cost)
+        # dynamic scheduling, the work per vertex varies a lot
+        with nb.parallel_chunksize(16):
+            _propose(*common, Q, dirty, qem, *params, lw, owner, target, tpos, cost)
         tr = _lap(timing, "propose", tr)
-        wu = _select(target, cost, vf_ptr, vf_idx, len(F))
+        wu = _select(target, cost, F, vf_ptr, vf_idx)
         tr = _lap(timing, "select", tr)
         if len(wu) == 0:
             break
         wv = target[wu]
         wp = tpos[wu]
-        ok = _apply(wu, wv, wp, *common, Q, *params, owner)
+        with nb.parallel_chunksize(16):
+            ok = _apply(wu, wv, wp, *common, Q, *params, owner)
         assert ok.all()
-        moved = wv[(wp != V[wv]).any(axis=1)]
+        moved = (wp != V[wv]).any()
         V[wv] = wp
         tr = _lap(timing, "apply", tr)
 
         # substitute u -> v, drop the collapsed faces and renumber
-        vmap = np.arange(nv)
-        vmap[wu] = wv
-        Fn = vmap[F]
-        changed = (Fn != F).any(axis=1)
-        degenerate = (Fn[:, 0] == Fn[:, 1]) | (Fn[:, 1] == Fn[:, 2]) | (Fn[:, 2] == Fn[:, 0])
-        keep = ~degenerate
-        new_id = np.cumsum(keep) - 1
-        owner = new_id[owner]
-        # reactivate the vertices whose neighbourhood changed
-        touched = np.zeros(nv, dtype=bool)
-        touched[Fn[changed & keep].ravel()] = True
-        F, patch, sgn, labels = Fn[keep], patch[keep], sgn[keep], labels[keep]
+        F, patch, sgn, fid, vf_ptr, vf_idx, pf_ptr, pf_idx, dirty = _collapse(
+            wu, wv, F, patch, sgn, fid, owner, vf_ptr, vf_idx, pf_ptr, pf_idx, moved
+        )
         target[wu] = -1
-        # all faces around v changed: their owned points, and with a moved v
-        # their geometry
-        is_v = np.zeros(nv, dtype=bool)
-        is_v[wv] = True
-        touched[F[is_v[F].any(axis=1)].ravel()] = True
-        if len(moved):
-            # the checks of moved vertices also look at the faces next to the
-            # modified ones
-            touched[F[touched[F].any(axis=1)].ravel()] = True
-        dirty[:] = False
-        dirty[F[touched[F].any(axis=1)].ravel()] = True
         tr = _lap(timing, "update", tr)
         if verbose:
             print(
@@ -1258,13 +1413,11 @@ def simplify_surface(
                 f"{dirty.sum()} dirty, {time.perf_counter() - t0:.2f}s"
             )
 
-    nb.set_parallel_chunksize(chunksize)
-
     used = np.unique(F)
     vmap = np.full(nv, -1)
     vmap[used] = np.arange(len(used))
     out = pv.PolyData.from_regular_faces(V[used], vmap[F])
-    out.cell_data[label_name] = labels
+    out.cell_data[label_name] = labels[fid]
     if verbose:
         print(f"done in {time.perf_counter() - t0:.2f}s: {surf.n_cells} -> {out.n_cells} faces")
         print("time per step: " + ", ".join(f"{k} {t:.2f}s" for k, t in timing.items()))
