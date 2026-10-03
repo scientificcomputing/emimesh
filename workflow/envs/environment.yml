@@ -6,9 +6,11 @@ dependencies:
   - pyvista
   - scikit-image
   - meshio
+  - h5py
   - dask-image
   - seaborn
-  - pyacvd
+  - numba
+  - scipy
   - pip
   - pip:
       - pytetwild

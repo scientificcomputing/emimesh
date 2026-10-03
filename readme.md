@@ -35,8 +35,9 @@ Emimesh works with `.yaml` configuration files (see `config_files/` for examples
 Then, emimesh will do the following steps for you:
 - download segmented image data
 - preprocess the image for meshing
-- extract the surfaces of each cell
-- generate a volumetric mesh of the extracted surfaces mesh and the extracellular space in between the cells with [fTetWild](https://github.com/wildmeshing/fTetWild)
+- extract one multi-label surface of all cells and the extracellular space (ECS) with surface nets, and smooth it (points on the bounding box stay on their box face)
+- optionally adjust the ECS volume share
+- simplify the surface and generate a volumetric mesh of the whole domain with [fTetWild](https://github.com/wildmeshing/fTetWild); each tetrahedron is labeled by the generalized winding number of the surface
 
 A simple configuration file could look like this:
 ```yaml
@@ -51,12 +52,12 @@ processing:
   operation : 
     - "smooth iterations=1 radius=1" # smooth the segmentation before meshing
 meshing:
-  envelopsize : [18] # maximum deviation of the tetrahdral mesh interfaces from the input surfaces (in physical dimension, usually nm).
+  envelopsize : 18 # maximum deviation of the tetrahdral mesh interfaces from the input surfaces (in physical dimension, usually nm).
 ```
 
 ## Configuration Reference
 
-The configuration file is divided into `raw`, `processing`, and `meshing`.
+The configuration file is divided into `raw`, `processing`, `surface` (optional), and `meshing`.
 
 ### Raw Data (`raw`)
 Controls data download and extent.
@@ -76,13 +77,25 @@ Controls general resampling and filtering.
 | **`dx`** | Target isotropic resolution (nm). The downloaded data will be resampled to this resolution before operations are applied. |
 | **`ncells`** | (Optional) Integer. If specified, only the largest `N` cells by volume are kept in the final mesh. |
 
+### Surface Settings (`surface`, optional)
+Controls the surface extraction.
+
+| Option | Description |
+| :--- | :--- |
+| **`smoothing_scale`** | (Optional) Maximal displacement of the surface points during smoothing, in voxels (default: 1.2). |
+| **`smoothing_iterations`** | (Optional) Number of smoothing iterations (default: 16). |
+| **`ecs_share`** | (Optional) Target ECS volume share (0-1). If set, the cell-ECS interfaces are moved until the ECS takes this share of the volume. |
+| **`ecs_min_width`** | (Optional) Minimal thickness of cells and ECS gaps (nm) for the ECS share adjustment (default: 10). |
+
 ### Meshing Settings (`meshing`)
-Controls the `fTetWild` meshing engine.
+Controls the surface simplification and the `fTetWild` meshing engine.
 
 | Option | Description |
 | :--- | :--- |
 | **`envelopsize`** | The "envelope" size (epsilon) for fTetWild, in nm. This defines how much the final tetrahedral mesh surface is allowed to deviate from the input surface. Larger values allow for coarser meshes with fewer elements. |
 | **`stopquality`** | (Optional) fTetWild quality score (default: 10). Controls the trade-off between mesh quality and fidelity. Higher values stop optimization earlier (at the expense of mesh quality). |
+| **`simplify_eps`** | (Optional) Maximal deviation of the simplified surface from the smoothed surface, in nm (default: 0.5 voxels). `0` disables the simplification. |
+| **`edge_length_fac`** | (Optional) fTetWild target edge length, relative to the bounding box diagonal (default: 0.05). |
 
 ## Image Processing Operations
 
@@ -158,5 +171,5 @@ processing:
 The output consists of the following directories:
 * raw: The downloaded segmentation as in `.vti` format, suitable for e.g. paraview
 * processed: The processed image in `.vti` format
-* surfaces: The surfaces of the extracted cells in `.ply` format, again suitable for visualization with paraview or usage in other meshing software
+* surfaces: The multi-label surface in `.vtk` format, with the labels on both sides of each face in the `boundary_labels` cell data: `surf_smooth.vtk` (smoothed), `surf_ecs.vtk` (after the ECS share adjustment, if requested) and `surf_dec.vtk` (simplified, the input of fTetWild). Suitable for visualization with paraview or usage in other meshing software
 * meshes: The generated volumetric meshes in `.xdmf` format, containing labels for the extracellular space (label 1) and increasing integer values (2,..., N) for all cells. A mapping between the labels and the original cell id in the base segmenation is provided in the `processed/.../imagestatistics.yml`file.

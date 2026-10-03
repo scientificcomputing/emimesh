@@ -1,80 +1,90 @@
-"""Tests for emimesh.extract_surfaces module."""
-import numpy as np
-import pyvista as pv
+"""Tests for emimesh.extract_surfaces and emimesh.generate_mesh."""
 
-from emimesh.extract_surfaces import (
-    extract_surface, create_balanced_csg_tree,
-    clean_mesh_nan_points
-)
+import numpy as np
+import pytest
+
+from emimesh.ecs_share import label_volumes as surface_volumes
+from emimesh.extract_surfaces import ECS_LABEL, extract_surface, prepare_labels
+from emimesh.generate_mesh import mesh_surface
 from emimesh.utils import np2pv
 
+DX = 10.0
 
-class TestExtractSurface:
-    """Test surface extraction functionality."""
-    
-    def test_extract_surface_basic(self):
-        """Test basic surface extraction."""
-        # Create a simple test volume
-        mask = np.zeros((10, 10, 10), dtype=np.uint32)
-        mask[2:7, 2:8, 2:8] = 1  # Cube in the center
-        
-        grid = pv.ImageData(dimensions=mask.shape, spacing=(1,1,1), origin=(0, 0, 0))
-        print(grid)
-        print(mask)
-        result = extract_surface(mask, grid, mesh_reduction_factor=2, taubin_smooth_iter=5)
-        
-        # Should return a valid mesh
-        assert isinstance(result, pv.PolyData)
-        assert result.is_manifold
-        assert not np.isnan(result.points).any()
-    
-    
-    def test_extract_surface_too_small(self):
-        """Test surface extraction with too small volume."""
-        mask = np.zeros((10, 10, 10), dtype=np.uint32)
-        mask[5, 5, 5] = 1  # Single voxel
-        
-        grid = pv.ImageData(dimensions=(10, 10, 10), spacing=(1, 1, 1))
-        
-        result = extract_surface(mask, grid, mesh_reduction_factor=10, taubin_smooth_iter=5)
-        
-        assert result is False
 
-class TestCSGTree:
-    """Test CSG tree creation."""
-    
-    def test_create_balanced_csg_tree_single(self):
-        """Test CSG tree creation with single surface."""
-        surface_files = ["surface1.ply"]
-        
-        result = create_balanced_csg_tree(surface_files)
-        
-        assert result == "surface1.ply"
-    
-    def test_create_balanced_csg_tree_two(self):
-        """Test CSG tree creation with two surfaces."""
-        surface_files = ["surface1.ply", "surface2.ply"]
-        
-        result = create_balanced_csg_tree(surface_files)
-        
-        expected = {
-            "operation": "union",
-            "left": "surface1.ply",
-            "right": "surface2.ply"
-        }
-        assert result == expected
-    
-    def test_create_balanced_csg_tree_multiple(self):
-        """Test CSG tree creation with multiple surfaces."""
-        surface_files = ["s1.ply", "s2.ply", "s3.ply", "s4.ply"]
-        
-        result = create_balanced_csg_tree(surface_files)
-        
-        # Should be a balanced tree structure
-        assert result["operation"] == "union"
-        assert "left" in result
-        assert "right" in result
-        
-        # Left and right should each contain 2 surfaces
-        assert isinstance(result["left"], dict) or isinstance(result["left"], str)
-        assert isinstance(result["right"], dict) or isinstance(result["right"], str)
+def two_cells(roi=False):
+    """Two touching boxes (labels 2 and 3) in a 20^3 voxel image; with roi, a
+    roimask excluding the outer 2 voxel layers in x."""
+    img = np.zeros((20, 20, 20), dtype=np.uint32)
+    img[4:10, 5:15, 5:15] = 2
+    img[10:16, 5:15, 5:15] = 3
+    roimask = None
+    if roi:
+        roimask = np.zeros(img.shape, dtype=np.uint8)
+        roimask[2:18] = 1
+    return np2pv(img, (DX,) * 3, roimask=roimask)
+
+
+def label_volumes(mesh):
+    vol = mesh.compute_cell_sizes(length=False, area=False)["Volume"]
+    return {int(k): vol[mesh["label"] == k].sum() for k in np.unique(mesh["label"])}
+
+
+def test_prepare_labels():
+    grid = prepare_labels(two_cells())
+    assert set(np.unique(grid["data"])) == {ECS_LABEL, 2, 3}
+
+    grid = prepare_labels(two_cells(roi=True))
+    data = grid["data"].reshape(np.array(grid.dimensions) - 1, order="F")
+    assert np.all(data[:2] == 0) and np.all(data[18:] == 0)
+    assert np.all(data[2:4] == ECS_LABEL)
+
+
+@pytest.mark.parametrize("roi", [False, True])
+def test_extract_surface(roi):
+    imggrid = two_cells(roi)
+    surf = extract_surface(imggrid)
+    assert surf.is_all_triangles
+    assert surf.field_data["dx"][0] == DX
+
+    labels = surf.cell_data["boundary_labels"]
+    pairs = {tuple(sorted(p)) for p in labels}
+    assert {(1, 2), (1, 3), (2, 3)} <= pairs
+    # the outside (0) only borders the ECS
+    assert all(p[1] == ECS_LABEL for p in pairs if p[0] == 0)
+
+    # each label region is closed: every edge of its faces is used twice
+    for label in (1, 2, 3):
+        faces = surf.regular_faces[(labels == label).any(axis=1)]
+        edges = np.sort(np.stack([faces, np.roll(faces, -1, axis=1)], -1).reshape(-1, 2), axis=1)
+        _, counts = np.unique(edges, axis=0, return_counts=True)
+        assert np.all(counts == 2)
+
+    # points stay inside the image, the box faces are kept
+    lo, hi = np.array(imggrid.bounds).reshape(3, 2).T
+    if roi:
+        lo[0], hi[0] = 2 * DX, 18 * DX
+    assert np.allclose(surf.points.min(axis=0), lo)
+    assert np.allclose(surf.points.max(axis=0), hi)
+
+
+@pytest.mark.parametrize("roi", [False, True])
+def test_mesh_surface(roi):
+    imggrid = two_cells(roi)
+    surf = extract_surface(imggrid)
+    mesh, dec = mesh_surface(surf, envelopsize=0.5, simplify_eps=0.05 * DX)
+    assert dec.n_points <= surf.n_points
+
+    vols = label_volumes(mesh)
+    assert set(vols) == {1, 2, 3}
+    # simplification, meshing and labeling keep the volumes enclosed by the surface
+    ref = surface_volumes(
+        surf.points.astype(float), surf.regular_faces, surf["boundary_labels"].astype(int)
+    )
+    for k in (1, 2, 3):
+        assert vols[k] == pytest.approx(ref[k], rel=1e-2)
+    # smoothing rounds off the edges of the thin boxes
+    cell = 6 * 10 * 10 * DX**3
+    assert vols[2] == pytest.approx(cell, rel=0.25)
+    assert vols[3] == pytest.approx(cell, rel=0.25)
+    box = (16 if roi else 20) * 20 * 20 * DX**3
+    assert sum(vols.values()) == pytest.approx(box, rel=1e-3)

@@ -198,7 +198,6 @@ for name in names:
         coarsen=False,
         num_threads=6,
     )
-    continue
 
     mesh = pytetwild.tetrahedralize_pv(surf, **twild_defaults)
     mesh = mark_mesh(mesh, surf)

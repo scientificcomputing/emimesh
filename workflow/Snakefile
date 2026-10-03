@@ -16,16 +16,23 @@ mesh_dir = "results/{name}/meshes/"
 raw_data_path = raw_dir + "raw.vti"
 
 processed_data_path = processed_dir + "processed.vti"
-csgtree = surf_dir + "csgtree.json"
+surf_smooth_path = surf_dir + "surf_smooth.vtk"
+surf_ecs_path = surf_dir + "surf_ecs.vtk"
+surf_dec_path = surf_dir + "surf_dec.vtk"
 cellsizeplot = processed_dir + "cellsizes.png"
 imagestatistic = processed_dir + "imagestatistic.yml"
 
 mesh_path = mesh_dir + "mesh.xdmf"
 meshstatistic = mesh_dir + "meshstatistic.yml"
 mesh_img = mesh_dir + "mesh.png"
-surfaces_dir = directory(surf_dir)
 
-size_to_ntasks =  lambda size: min(24, int(1 + (size/400)**2))
+surface_config = dict(config.get("surface", {}))
+ecs_share = surface_config.pop("ecs_share", None)
+ecs_min_width = surface_config.pop("ecs_min_width", None)
+# the optional ECS share adjustment sits between smoothing and meshing
+mesh_input_path = surf_ecs_path if ecs_share is not None else surf_smooth_path
+
+size_to_ntasks =  lambda size: min(24, int(1 + (size/100)**2))
 size_to_minutes = lambda size: int((size/500)**3 * 120 + 60)
 
 def dict_to_optionsstring(d):
@@ -82,24 +89,42 @@ rule extractSurfaces:
     input:
         processeddata=processed_data_path
     output:
-        outdir=surfaces_dir,
-        csgtree=csgtree
+        surf=surf_smooth_path
     resources:
         time=120,
         ntasks=lambda wildcards: size_to_ntasks(config["raw"]["size"] / config["processing"]["dx"]),
     conda:
         conda_env
+    params:
+        options=dict_to_optionsstring(surface_config)
     shell:
         """
-        emi-extract-surfaces --infile {input.processeddata} --ncpus {resources.ntasks} \
-        --outdir {output.outdir}
+        emi-extract-surfaces --infile {input.processeddata} \
+        {params.options} \
+        --output {output.surf}
+        """
+
+rule adjustECSShare:
+    input:
+        surf=surf_smooth_path
+    output:
+        surf=surf_ecs_path
+    conda:
+        conda_env
+    params:
+        options=f"--ecs-share {ecs_share}"
+        + (f" --min-width {ecs_min_width}" if ecs_min_width is not None else "")
+    shell:
+        """
+        emi-adjust-ecs-share --infile {input.surf} --outfile {output.surf} {params.options}
         """
 
 rule generateMesh:
     input:
-        csgtree=csgtree,
+        surf=mesh_input_path,
     output:
         outfile=mesh_path,
+        surf=surf_dec_path,
     conda:
         conda_env
     resources:
@@ -111,10 +136,11 @@ rule generateMesh:
     shell:
         """
         emi-generate-mesh \
-        --csgtree {input.csgtree} \
+        --infile {input.surf} \
         {params.options} \
         --output {output.outfile} \
-        --max_threads {resources.ntasks} \
+        --surface_output {output.surf} \
+        --max_threads {resources.ntasks}
         """
 
 #   python workflow/scripts/seperate_touching_cells.py --infile {output.outfile} --output {output.outfile}

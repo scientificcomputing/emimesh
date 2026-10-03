@@ -1,157 +1,50 @@
+"""
+Multi-label surface of the processed label image: surface nets
+(contour_labels without smoothing) followed by our constrained smoothing,
+which keeps the points on the bounding box on their box face.
+"""
 
 import numpy as np
 import pyvista as pv
 
-import pyacvd
+from emimesh.surface_smoothing import smooth_surface_net
 
-from pathlib import Path
-import sys
-import shutil
-import itertools
-
-from vtkmodules.vtkCommonDataModel import vtkPlaneCollection
-from vtkmodules.vtkFiltersGeneral import vtkClipClosedSurface
-from pyvista.core.filters import _get_output, _update_alg
-from pyvista.core.utilities.helpers import generate_plane
-
-padded = None
-grid = None
-
-def clip_closed_surface(surf, normal='x', origin=None, tolerance=1e-06, inplace=False, progress_bar=False):
-
-    plane = generate_plane(normal, origin)
-    collection = vtkPlaneCollection()
-    collection.AddItem(plane)
-    alg = vtkClipClosedSurface()
-    alg.SetGenerateFaces(True)
-    alg.SetInputDataObject(surf)
-    alg.SetTolerance(tolerance)
-    alg.SetClippingPlanes(collection)
-    _update_alg(alg, progress_bar=False, message='Clipping Closed Surface')
-    result = _get_output(alg)
-    if inplace:
-        surf.copy_from(result, deep=False)
-        return None
-    else:
-        return result
+ECS_LABEL = 1
 
 
-def clip_closed_box(surf, box):
-    box.compute_normals(inplace=True)
-    centers = box.cell_centers().points
-    for midp, n in zip(centers, box.cell_normals):
-        clip_closed_surface(surf, normal=-n, origin=midp, inplace=True)
-
-def clean_mesh_nan_points(grid: pv.PolyData):
+def prepare_labels(imggrid):
     """
-    Replaces NaN point coordinates in a PyVista grid with the mean of their
-    connected neighbors using the efficient `point_neighbors` method.
-
-    Args:
-        grid: A PyVista PolyData object that may contain NaN values in its points.
-
+    Label image for the surface extraction: cells keep their labels (>= 2),
+    the background becomes the ECS (label 1). If the image has a roimask,
+    only the background inside the ROI becomes ECS, the rest stays 0
+    (outside of the domain).
     """
-    grid = grid
-    points = grid.points
-
-    # Find the indices of points where any coordinate is NaN
-    nan_point_indices = np.where(np.isnan(points).any(axis=1))[0]
-
-    if nan_point_indices.size == 0:
-        return
-
-    print(f"Found {len(nan_point_indices)} points with NaN coordinates. Cleaning them...")
-
-    # Iterate through each point with NaN coordinates
-    for point_idx in nan_point_indices:
-        # Directly get the indices of the neighboring points
-        neighbor_indices = grid.point_neighbors(point_idx)
-
-        if not neighbor_indices:
-            # As a fallback, if the point has no neighbors, replace with origin.
-            points[point_idx] = [0, 0, 0]
-            continue
-
-        # Get the coordinates of the neighbors
-        neighbor_coords = points[neighbor_indices]
-
-        # Filter out any neighbors that are also NaN
-        valid_neighbors = neighbor_coords[~np.isnan(neighbor_coords).any(axis=1)]
-
-        if valid_neighbors.shape[0] > 0:
-            # Calculate the mean of the valid neighbors and replace the NaN point
-            points[point_idx] = np.mean(valid_neighbors, axis=0)
-        else:
-            # Fallback if all neighbors are also NaN
-            points[point_idx] = [0, 0, 0]
-
-def n_point_target(n, mesh_reduction_factor):
-    return int(50 + n / mesh_reduction_factor)
+    data = np.array(imggrid.cell_data["data"])
+    ecs = data == 0
+    if "roimask" in imggrid.array_names:
+        ecs &= np.asarray(imggrid["roimask"]).astype(bool)
+    data[ecs] = ECS_LABEL
+    grid = pv.ImageData(
+        dimensions=imggrid.dimensions, spacing=imggrid.spacing, origin=imggrid.origin
+    )
+    grid.cell_data["data"] = data
+    return grid
 
 
-def extract_surface(mask, grid, mesh_reduction_factor, taubin_smooth_iter, filename=None):
-    mesh = grid.contour([0.5], mask.flatten(order="F"), method="marching_cubes")
-    origsurf = mesh.extract_geometry()
-    origsurf.clear_data()
-    n_points = origsurf.number_of_points
-    if n_points < 10: return False
-    clus = pyacvd.Clustering(origsurf)
-    clus.cluster(n_point_target(n_points, mesh_reduction_factor))
-    surf = clus.create_mesh()
-    surf.smooth_taubin(n_iter=taubin_smooth_iter, inplace=True)
-    clean_mesh_nan_points(surf)
-    assert np.isnan(surf.points).any() == False
-    if surf.number_of_points > 10 and filename is not None:
-        print(f"saving : {filename}")
-        pv.save_meshio(filename, surf)
-    
+def extract_surface(imggrid, smoothing_scale=1.2, iterations=16):
+    """
+    Smoothed, triangulated multi-label surface of the label image (cell data
+    'data', 0 = outside), with cell data 'boundary_labels' (n_faces, 2).
+    The displacement of each point is limited to smoothing_scale * dx; dx is
+    stored in the field data.
+    """
+    grid = prepare_labels(imggrid)
+    surf = grid.contour_labels(
+        "all", smoothing=False, output_mesh_type="quads", background_value=0, scalars="data"
+    )
+    dx = np.min(grid.spacing)
+    surf = smooth_surface_net(
+        surf, iterations=iterations, distance=dx, scale=smoothing_scale, fix_bounds=True
+    )
+    surf.field_data["dx"] = [dx]
     return surf
-
-def extract_surf_id(obj_id, mesh_reduction_factor, taubin_smooth_iter,
-            filename):
-    surf = extract_surface(padded == obj_id, grid, mesh_reduction_factor,
-                    taubin_smooth_iter,filename=filename)
-    if surf:
-        return obj_id
-    else: return None
-    
-def extract_cell_meshes(
-    img,
-    cell_labels,
-    resolution,
-    mesh_reduction_factor=10,
-    taubin_smooth_iter=5,
-    write_dir=None,
-    ncpus=1
-):
-    global padded
-    global grid
-    padded = np.pad(img, 1)
-    grid = pv.ImageData(dimensions=padded.shape, spacing=resolution, origin=(0, 0, 0))
-
-    write_path = Path(write_dir)
-    if write_path.exists():
-        shutil.rmtree(write_path) 
-    write_path.mkdir(parents=True, exist_ok=True)
-
-    args = [(obj_id, mesh_reduction_factor, taubin_smooth_iter, 
-                 f"{write_dir}/{obj_id}.ply") for obj_id in cell_labels]
-
-    if sys.platform != "win32":
-        import multiprocessing
-        multiprocessing.set_start_method("fork")
-        with multiprocessing.Pool(ncpus) as pool:  
-            surfaces = pool.starmap(extract_surf_id, args)
-            pool.close()
-            pool.join()
-    else:
-        surfaces = list(itertools.starmap(extract_surf_id, args))
-    return surfaces
-
-def create_balanced_csg_tree(surface_files):
-    n = len(surface_files)
-    if  n >= 2:
-        return {"operation": "union", "left": create_balanced_csg_tree(surface_files[:int(n/2)])
-                                    , "right": create_balanced_csg_tree(surface_files[int(n/2):])}
-    return surface_files[0]
-
