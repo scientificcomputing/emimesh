@@ -3,7 +3,11 @@ __*
 results
 results/
 logs/
+build
 
+*.vtk
+*.xdmf
+*.vti
 *.egg-info
 
 fTetWild

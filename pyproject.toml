@@ -15,7 +15,8 @@ dependencies = [
     "cloud-volume",
     "connected-components-3d",
     "cmocean",
-    "nbmorph",
+    "nbmorph>0.3.1",
+    "vtk>=9.6.0"
 ]
 name = "EMIMesh"
 version = "1.0.0.dev0"
