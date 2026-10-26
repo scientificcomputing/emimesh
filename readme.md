@@ -26,8 +26,8 @@ snakemake --configfile config_files/cortical_mm3.yml --use-conda --cores 8
 
 - **A. Data download** of the segmentation (cloud-volume or webknossos).
 - **B. Image processing:** resampling and a sequence of morphological [operations](#image-processing-operations) on the labels. These set the rough ECS share, separate the cells and repair topology.
-- **C. Surface extraction:** one multi-label surface of all cells and the ECS, made with surface nets and smoothed. Points on the bounding box stay on their box face. Optionally, the [ECS share](#ecs-share) is fine-tuned on the surface.
-- **D. Tetrahedral mesh:** the surface is simplified and tetrahedralized with [fTetWild](https://github.com/wildmeshing/fTetWild). Each tetrahedron is labelled by the generalized winding number of the surface. Optionally, the mesh is [curved](#curved-meshes).
+- **C. Surface extraction:** one multi-label surface of all cells and the ECS, made with surface nets and smoothed. Optionally, the [ECS share](#ecs-share) is fine-tuned on the surface.
+- **D. Tetrahedral mesh:** the surface is simplified and tetrahedralized with [fTetWild](https://github.com/wildmeshing/fTetWild). Optionally, the mesh is [curved](#curved-meshes).
 
 ## Configuration
 
@@ -83,19 +83,18 @@ See `config_files/` for complete examples, e.g. `cappilary1.yml` for an ROI arou
 
 <img src='images/handles.png' width='600'>
 
-A cell cut by the faces of the volume can show tunnels that it does not have (e.g. a tube cut across). Inside the volume these cannot be told apart from real tunnels, so they are closed as well. In the figure, the handles at the volume faces are real: they remain in a crop twice as large.
 
 ### ECS share
 With `surface: ecs_share`, all cell–ECS interfaces are moved by a common offset until the ECS takes that share of the volume. The bounding box is kept, and cells and gaps stay at least `ecs_min_width` thick. Below, the ECS share of a dense crop is lowered from 23 % to 18 % (right: zoomed region, with the voxel grid).
 
 <img src='images/ecs_share.png' width='700'>
 
-This adjustment is limited in range: the minimal widths soon stop the interfaces, and on a test volume it could only go from 21 % to about 26 %. Set the rough ECS share with the voxel operations (e.g. `erode`, `dilate`), and use `ecs_share` to fine-tune it.
+This adjustment is limited in range: Set the rough ECS share with the voxel operations (e.g. `erode`, `dilate`), and use `ecs_share` to fine-tune it.
 
 ### Curved meshes
 fTetWild meshes the simplified surface with straight-sided tetrahedra, which cut the corners of curved membranes. With `meshing: curved: true`, the mesh is converted to quadratic (10-node) tetrahedra, and the nodes on the membranes and on the boundary are moved onto the input surface of the mesh step (the fine surface before simplification), onto the part with the same two labels. Nodes move step by step, and a step that would push a cell below half its initial quality, or below 0.1 (whichever is higher, but at most the initial quality), is shortened or skipped, so no cell is inverted. The number of cells is unchanged.
 
-The figure shows a dendritic spine from an 800 nm crop (20 nm voxels): its input surface, and the straight and curved meshes colored by the distance to it, with whole tetrahedra (gray) at the crop box. Over all membranes of the crop, curving reduces the mean distance from 3.4 nm to 1.0 nm, and the 95th percentile from 7.8 nm to 3.6 nm. The mean volume error of the cells drops from 7.5 % to 1.9 % (max. 15 % to 6 %). A few nodes cannot reach the surface without inverting a cell, so the largest distances remain. Curving costs some cell quality, within these bounds: the mean minimal scaled Jacobian drops from 0.59 to 0.51, and the minimum from 0.13 to 0.10.
+The figure shows a dendritic spine from an 800 nm crop (20 nm voxels): its input surface, and the straight and curved meshes colored by the distance to it, with whole tetrahedra (gray) at the crop box. Over all membranes of the crop, curving reduces the mean distance from 3.4 nm to 1.0 nm, and the 95th percentile from 7.8 nm to 3.6 nm. The mean volume error of the cells drops from 7.5 % to 1.9 % (max. 15 % to 6 %). A few nodes cannot reach the surface without inverting a cell, some larger distances remain. Curving costs some cell quality: the mean minimal scaled Jacobian decreases from 0.59 to 0.51, and the minimum from 0.13 to 0.10.
 
 <img src='images/curved.png' width='800'>
 
