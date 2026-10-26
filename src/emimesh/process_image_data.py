@@ -47,7 +47,7 @@ def process_image(imggrid, dx, operations, ncells=None, num_threads=1):
     from functools import partial
     from imagemesh.image import np2pv
 
-    numba.set_num_threads(num_threads)
+    numba.set_num_threads(min(num_threads, numba.config.NUMBA_NUM_THREADS))
 
     img = imggrid["data"]
     dims = imggrid.dimensions
