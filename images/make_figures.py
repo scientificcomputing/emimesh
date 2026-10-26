@@ -221,7 +221,7 @@ def pinches(raw, work, r=8 * DX, view=(-1.0, 1.0, 1.0)):
 
 
 # a cell with handles (well inside the crop), shown around its shortest closed
-# handle; handles of cells cut by the crop faces can be artefacts of the cut
+# handle
 HANDLE_CELLS = [46]
 
 

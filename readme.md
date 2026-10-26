@@ -85,11 +85,11 @@ Voxels of a cell that touch only at an edge or corner (*pinches*) give non-manif
 
 <img src='images/pinches.png' width='700'>
 
-`fill_handles` closes handles (tunnels) through a cell with a thin membrane:
+`fill_handles` closes handles (tunnels) through a cell with a thin membrane, spanned along the shortest loop around each tunnel:
 
 <img src='images/handles.png' width='500'>
 
-Handles of cells that are cut by the faces of the volume can be artefacts of the cut, and are then closed as well.
+A cell cut by the faces of the volume can show tunnels that it does not have (e.g. a tube cut across). Inside the volume these cannot be told apart from real tunnels, so they are closed as well. On the crop above, the handles at the volume faces are real: they remain in a crop twice as large.
 
 ### ECS share
 With `surface: ecs_share`, all cell–ECS interfaces are moved by a common offset until the ECS takes that share of the volume. The bounding box is kept, and cells and gaps stay at least `ecs_min_width` thick. Below, the ECS share of a dense crop is lowered from 23 % to 18 % (right: zoomed region, with the voxel grid).
