@@ -20,5 +20,5 @@ dependencies:
       - connected-components-3d
       - cmocean
       - nbmorph
-      - -e ../../../imagemesh
+      - imagemesh @ git+https://github.com/MariusCausemann/imagemesh
       - -e ../..

@@ -17,7 +17,8 @@ zipped
 zipped_surf
 .snakemake
 .vscode
-.cache# pixi environments
+
+# pixi environments
 .pixi/*
 !.pixi/config.toml
 pixi.lock

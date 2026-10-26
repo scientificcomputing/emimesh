@@ -20,7 +20,7 @@ dependencies = [
     "numba",
     "scipy",
     "vtk>=9.6.0",
-    "imagemesh",
+    "imagemesh @ git+https://github.com/MariusCausemann/imagemesh",
 ]
 name = "EMIMesh"
 version = "1.0.0.dev0"

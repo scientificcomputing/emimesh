@@ -115,6 +115,7 @@ Operations are defined as a list of strings under `processing: operation`. Each 
 | **`smooth`** | `radius` (int)<br>`iterations` (int)<br>`labels` (list, optional) | smooths the cell boundaries using morphological opening and closing. |
 | **`removeislands`** | `minsize` (int) | Removes disconnected components (dust) smaller than the specified voxel count. |
 | **`remove_pinches`** | `separate_cells` (bool, default true)<br>`max_iterations` (int, default 20) | Repairs voxels that touch only along an edge or at a corner, which would otherwise give non-manifold surfaces (and touching cells) in the surface extraction. Use it as the last operation. |
+| **`fill_handles`** | `thickness` (int, default 3)<br>`max_loop_length` (int, default 400)<br>`workers` (int, default 1) | Closes the handles (tunnels) of cells with thin membranes, so that each cell is free of handles. Use it before `remove_pinches`. See `examples/pinches_and_handles.py`. |
 
 ### Region of Interest (ROI) Operations
 You can generate a mask (ROI) based on specific cells and apply operations to that mask before applying it back to the image. This is useful for masking out areas surrounding specific cells.
