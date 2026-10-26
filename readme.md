@@ -24,7 +24,7 @@ snakemake --configfile config_files/cortical_mm3.yml --use-conda --cores 8
 
 <img src='images/pipeline_overview.png' width='800'>
 
-- **A. Data download** of the segmentation (cloud-volume or webknossos).
+- **A. Data download** of the segmentation (cloud-volume or webknossos). Take a look at the [microns explorer gallery](https://www.microns-explorer.org/gallery-mm3), and copy cloudpath and position from the interactive neuroglancer view.
 - **B. Image processing:** resampling and a sequence of morphological [operations](#image-processing-operations) on the labels. These set the rough ECS share, separate the cells and repair topology.
 - **C. Surface extraction:** one multi-label surface of all cells and the ECS, made with surface nets and smoothed. Optionally, the [ECS share](#ecs-share) is fine-tuned on the surface.
 - **D. Tetrahedral mesh:** the surface is simplified and tetrahedralized with [fTetWild](https://github.com/wildmeshing/fTetWild). Optionally, the mesh is [curved](#curved-meshes).
