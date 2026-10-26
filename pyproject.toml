@@ -104,6 +104,9 @@ platforms = ["linux-64"]
 EMIMesh = { path = ".", editable = true }
 imagemesh = { path = "../imagemesh", editable = true }
 
+[tool.pixi.pypi-options.dependency-overrides]
+imagemesh = { path = "../imagemesh", editable = true }
+
 [tool.pixi.environments]
 default = { solve-group = "default" }
 all = { features = ["all"], solve-group = "default" }
