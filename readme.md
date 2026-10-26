@@ -124,7 +124,12 @@ url = "precomputed://gs://iarpa_microns/minnie/minnie65/seg_m1300"
 img, res = download_cloudvolume(url, mip=1, pos=[162258, 200928, 20530], physical_size=[2000] * 3)
 raw = np2pv(img, res)
 
-ops = [["smooth", "iterations=1", "radius=1"], ["erode", "radius=1"], ["remove_pinches"]]
+ops = [
+    ["smooth", "iterations=1", "radius=1"],
+    ["erode", "radius=1"],
+    ["removeislands", "minsize=150"],  # fragments too small to mesh
+    ["remove_pinches"],
+]
 img, *_ = process_image(raw, dx=20, operations=ops)  # cells get the labels 2, 3, ...
 surf = extract_surface(img)  # multi-label surface, ECS = 1
 surf, _, share = adjust_ecs_share(surf, 0.25)  # optional, takes a few minutes
