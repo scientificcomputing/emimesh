@@ -3,6 +3,7 @@ import numpy as np
 import pytetwild
 import pyvista as pv
 
+from emimesh.blocks import merge_surfaces
 from emimesh.download_data import download_cloudvolume
 from emimesh.process_image_data import process_image
 from imagemesh.smoothing import (
@@ -12,6 +13,7 @@ from imagemesh.smoothing import (
     triangulate_quads,
 )
 from imagemesh.image import np2pv
+from imagemesh.surface import close_quad_holes
 from imagemesh.winding_number import label_points
 from imagemesh.simplification import simplify_surface
 
@@ -56,7 +58,10 @@ def mark_mesh(mesh, surf):
         surf: multi-label surface mesh with 'boundary_labels' cell data
     """
     marker = label_points(
-        surf.points, surf.regular_faces, surf.cell_data["boundary_labels"], mesh.cell_centers().points
+        surf.points,
+        surf.regular_faces,
+        surf.cell_data["boundary_labels"],
+        mesh.cell_centers().points,
     )
     mesh.cell_data["marker"] = marker
     mesh = mesh.extract_cells(marker > 0)
@@ -75,19 +80,6 @@ def block_image(img, k_lo, k_hi):
     data = img.cell_data["data"].reshape((nx, ny, nz), order="F")[:, :, k_lo:k_hi]
     block.cell_data["data"] = data.flatten(order="F")
     return block
-
-
-def merge_surfaces(surfs, eps):
-    """
-    Merge the points of the block surfaces (coincident within eps). Returns the
-    merged points and, per block, its quads in merged point ids.
-    """
-    pts = np.vstack([s.points for s in surfs]).astype(np.float64)
-    _, idx, inv = np.unique(np.round(pts / eps), axis=0, return_index=True, return_inverse=True)
-    inv = inv.ravel()
-    offsets = np.cumsum([0] + [s.n_points for s in surfs])
-    quads = [inv[s.regular_faces + o] for s, o in zip(surfs, offsets[:-1])]
-    return pts[idx], quads
 
 
 def exterior_faces(quads, blabels):
@@ -145,8 +137,10 @@ block_k = {"top": (0, gap_start), "mid": (gap_start, gap_end), "bottom": (gap_en
 #    neighbouring blocks consist of the same quads (one per voxel column)
 names = list(block_k)
 surfs_raw = [
-    block_image(imggrid, *block_k[name]).contour_labels(
-        "all", smoothing=False, output_mesh_type="quads", background_value=0
+    close_quad_holes(
+        block_image(imggrid, *block_k[name]).contour_labels(
+            "all", smoothing=False, output_mesh_type="quads", background_value=0
+        )
     )
     for name in names
 ]
@@ -154,7 +148,7 @@ surfs_raw = [
 # 2. Merge the blocks, so that points on the cut planes are shared and move
 #    together. The cut plane quads appear twice; the stencils count them once
 eps = 1e-3 * dz
-points, quads = merge_surfaces(surfs_raw, eps)
+points, quads = merge_surfaces(surfs_raw, eps, cut_planes)
 all_quads = np.vstack(quads)
 
 # 3. Smooth like contour_labels, but keep points on the bounding box on their
@@ -184,7 +178,7 @@ for name in names:
     surf = surfs_smooth[name]
     surf.save(f"{name}_surf_smooth.vtk")
     print(f"start simplifying {name},#points: {surf.n_points} ")
-    surf = simplify_surface(surf, epsilon=dx*0.05)
+    surf = simplify_surface(surf, epsilon=dx * 0.05)
     print(f"finished simplifying {name},#points: {surf.n_points} ")
     surf.save(f"{name}_surf_dec.vtk")
 
