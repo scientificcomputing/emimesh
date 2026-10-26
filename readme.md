@@ -45,7 +45,6 @@ processing:
   operation :
     - "smooth iterations=1 radius=1"
     - "erode radius=1"
-    - "remove_pinches"
 meshing:
   envelopsize : 18             # max. deviation of the mesh from the surface (nm)
 ```
@@ -74,22 +73,17 @@ Operations are listed under `processing: operation` as strings of the form `"com
 | **`smooth`** | `radius`, `iterations`, `labels` | Morphological opening and closing. |
 | **`removeislands`** | `minsize` | Remove components smaller than `minsize` voxels. |
 | **`fill_handles`** | `thickness`, `max_loop_length`, `workers` | Close handles (tunnels) of cells with thin membranes. |
-| **`remove_pinches`** | `separate_cells`, `max_iterations` | Repair voxels that touch only at an edge or corner. Use it as the last operation. |
 | **`roigenerate`** / **`roiapply`** | `labels` | Create a mask from the listed cells, and later set everything outside it to 0. |
 | **`roi<op>`** | as `<op>` | Apply an operation to the mask, e.g. `roidilate radius=80`. |
 
 See `config_files/` for complete examples, e.g. `cappilary1.yml` for an ROI around a capillary.
 
-### Pinches and handles
-Voxels of a cell that touch only at an edge or corner (*pinches*) give non-manifold surfaces. Below, the upper and lower surfaces of a thin cell meet along a crease of pinches (red, left). The voxel plane across the crease (blue, right) shows why: there the cell is a chain of voxels that touch only diagonally. `remove_pinches` adds single voxels (outlined), so that the cell is face-connected and its surfaces separate. On a dense 2 µm MICrONS crop, it removes all pinches.
-
-<img src='images/pinches.png' width='700'>
-
+### Handles
 `fill_handles` closes handles (tunnels) through a cell with a thin membrane, spanned along the shortest loop around each tunnel:
 
 <img src='images/handles.png' width='500'>
 
-A cell cut by the faces of the volume can show tunnels that it does not have (e.g. a tube cut across). Inside the volume these cannot be told apart from real tunnels, so they are closed as well. On the crop above, the handles at the volume faces are real: they remain in a crop twice as large.
+A cell cut by the faces of the volume can show tunnels that it does not have (e.g. a tube cut across). Inside the volume these cannot be told apart from real tunnels, so they are closed as well. In the figure, the handles at the volume faces are real: they remain in a crop twice as large.
 
 ### ECS share
 With `surface: ecs_share`, all cell–ECS interfaces are moved by a common offset until the ECS takes that share of the volume. The bounding box is kept, and cells and gaps stay at least `ecs_min_width` thick. Below, the ECS share of a dense crop is lowered from 23 % to 18 % (right: zoomed region, with the voxel grid).
@@ -128,7 +122,6 @@ ops = [
     ["smooth", "iterations=1", "radius=1"],
     ["erode", "radius=1"],
     ["removeislands", "minsize=150"],  # fragments too small to mesh
-    ["remove_pinches"],
 ]
 img, *_ = process_image(raw, dx=20, operations=ops)  # cells get the labels 2, 3, ...
 surf = extract_surface(img)  # multi-label surface, ECS = 1
