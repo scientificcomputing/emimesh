@@ -86,31 +86,70 @@ def slice_lines(surf, z):
     return sl.points[sl.lines.reshape(-1, 3)[:, 1:]][:, :, :2]
 
 
-# a cell with handles (well inside the crop), shown around its shortest closed
-# handle
-HANDLE_CELLS = [46]
+# a cell with handles (well inside the crop), shown whole and zoomed to its
+# shortest closed handle
+HANDLE_CELL = 46
 
 
 def handles(surfs, fills):
-    p = pv.Plotter(
-        shape=(1, 2 * len(HANDLE_CELLS)), window_size=(800 * len(HANDLE_CELLS), 400), border=False
-    )
-    for col, cell in enumerate(HANDLE_CELLS):
-        loop = min((f[1] for f in fills if f[0] == cell and f[2] is not None), key=len)
-        loop = (np.asarray(loop) + 0.5) * DX
-        c = loop.mean(0)
-        normal = np.linalg.svd(loop - c)[2][2]
-        r = 2.5 * np.linalg.norm(loop - c, axis=1).max()
-        box = [c[0] - r, c[0] + r, c[1] - r, c[1] + r, c[2] - r, c[2] + r]
-        for row, (name, title) in enumerate([("base", "before"), ("filled", "fill_handles")]):
-            p.subplot(0, 2 * col + row)
-            s = cell_surface(surfs[name], cell).clip_box(box, invert=False)
-            p.add_mesh(s, color="lightsteelblue", smooth_shading=True)
-            p.add_text(title, font_size=10)
-            p.camera.focal_point = c
-            p.camera.position = c + 4 * r * (normal + 0.5 * np.cross(normal, [0, 0, 1]))
-    p.screenshot(outdir / "handles.png")
+    loop = min((f[1] for f in fills if f[0] == HANDLE_CELL and f[2] is not None), key=len)
+    loop = (np.asarray(loop) + 0.5) * DX
+    c = loop.mean(0)
+    normal = np.linalg.svd(loop - c)[2][2]
+    r = 2.5 * np.linalg.norm(loop - c, axis=1).max()
+    view = normal + 0.5 * np.cross(normal, [0, 0, 1])
+    view /= np.linalg.norm(view)
+    up = np.array([0.0, 0, 1]) - view[2] * view
+    up /= np.linalg.norm(up)
+    right = np.cross(up, view)
+    cells = {n: cell_surface(surfs[n], HANDLE_CELL) for n in ("base", "filled")}
+
+    # the whole cell, framed by its projection
+    P = cells["base"].points
+    lo, hi = (P @ right).min(), (P @ right).max()
+    blo, bhi = (P @ up).min(), (P @ up).max()
+    pad = 0.04 * max(hi - lo, bhi - blo)
+    scale = 0.5 * (bhi - blo) + pad  # half height
+    focal = 0.5 * (lo + hi) * right + 0.5 * (blo + bhi) * up + (c @ view) * view
+    h = 900
+    w = int(h * (0.5 * (hi - lo) + pad) / scale)
+    whole = snapshot(cells["base"], focal, scale, view, up, (w, h))
+    zooms = [snapshot(cells[n], c, r, view, up, (450, 450)) for n in ("base", "filled")]
+
+    fig = plt.figure(figsize=(8, 8 * h / (w + h / 2) + 0.3))
+    ax = fig.add_axes([0, 0, w / (w + h / 2), 1])
+    ax.imshow(whole)
+    ax.set_axis_off()
+    px = h / (2 * scale)  # pixels per nm
+    x = w / 2 + (c - focal) @ right * px
+    y = h / 2 - (c - focal) @ up * px
+    box = np.array([[x - r * px, y - r * px], [x + r * px, y + r * px]])
+    ax.add_patch(plt.Rectangle(box[0], *(box[1] - box[0]), fill=False, color="tab:red", lw=1.2))
+    x0 = w / (w + h / 2) + 0.01
+    for k, (img, title) in enumerate(zip(zooms, ["before", "fill_handles"])):
+        axz = fig.add_axes([x0, 0.5 * (1 - k) + 0.01, 1 - x0 - 0.01, 0.48])
+        axz.imshow(img)
+        axz.set_xticks([])
+        axz.set_yticks([])
+        for s in axz.spines.values():
+            s.set_color("tab:red")
+        axz.set_title(title, fontsize=10, y=1.0, pad=-14, loc="left", x=0.03)
+    fig.savefig(outdir / "handles.png", dpi=100)
+    plt.close(fig)
+
+
+def snapshot(mesh, focal, scale, view, up, size):
+    """Parallel projection of mesh along -view."""
+    p = pv.Plotter(window_size=size, border=False)
+    p.add_mesh(mesh, color="lightsteelblue", smooth_shading=True)
+    p.enable_parallel_projection()
+    p.camera.focal_point = focal
+    p.camera.position = focal + 1e4 * view
+    p.camera.up = up
+    p.camera.parallel_scale = scale
+    img = p.screenshot(return_img=True)
     p.close()
+    return img
 
 
 def ecs(surfs, work):

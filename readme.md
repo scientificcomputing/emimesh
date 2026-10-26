@@ -81,7 +81,7 @@ See `config_files/` for complete examples, e.g. `cappilary1.yml` for an ROI arou
 ### Handles
 `fill_handles` closes handles (tunnels) through a cell with a thin membrane, spanned along the shortest loop around each tunnel:
 
-<img src='images/handles.png' width='500'>
+<img src='images/handles.png' width='600'>
 
 A cell cut by the faces of the volume can show tunnels that it does not have (e.g. a tube cut across). Inside the volume these cannot be told apart from real tunnels, so they are closed as well. In the figure, the handles at the volume faces are real: they remain in a crop twice as large.
 
