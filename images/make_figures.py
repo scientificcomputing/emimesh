@@ -5,7 +5,7 @@ Figures of the readme, on a dense 2 um crop of the MICrONS segmentation:
         --position 162258-200928-20530 --size 2000 --mip 1 --output results/readme/raw.vti
     python images/make_figures.py results/readme/raw.vti results/readme [figures]
 
-figures: any of pinches, handles, ecs (default: all). The processed images,
+figures: any of pinches, handles, ecs, curved (default: all). The processed images,
 surfaces and the ECS share adjustment are cached in the work directory.
 """
 
@@ -16,11 +16,17 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 import pyvista as pv
+from imagemesh.curved import compute_quadratic_quality, convert_to_quadratic
+from imagemesh.facets import _tet_face_topology
 from imagemesh.handles import fill_handles
 from imagemesh.image import np2pv
 from imagemesh.pinches import count_pinches, remove_pinches
+from imagemesh.surface import label_volumes
+from imagemesh.tetmesh import compute_surface_volume, mesh_surface
 from matplotlib.collections import LineCollection
 
+from emimesh.clients.generate_mesh import curve_mesh
+from emimesh.clients.generate_surface_tags import mark_interfaces
 from emimesh.ecs_share import adjust_ecs_share, ecs_share
 from emimesh.extract_surfaces import extract_surface
 from emimesh.process_image_data import process_image
@@ -36,6 +42,11 @@ OPS = [
 ]
 ECS_CHANGE = -0.05  # change of the ECS share in the ECS figure
 ZOOM = [1100, 1500, 1250, 1650]  # region of the zoomed ECS panel (nm)
+CURVED_CROP = np.s_[0:50, 74:124, 30:50]  # 800 nm cube of the raw image
+CURVED_DX = 20
+CURVED_CELL = 19  # a dendritic spine (label after processing the crop)
+CURVED_CLIM = (0, 8)  # nm
+CURVED_CMAP = "YlOrRd"
 
 
 def labels(grid):
@@ -287,13 +298,216 @@ def ecs(surfs, work):
     fig.savefig(outdir / "ecs_share.png", dpi=120, bbox_inches="tight")
 
 
+def quadratic_faces(P, F, level):
+    """Surface of the 6-node triangles F, subdivided level times."""
+    cells = np.column_stack([np.full(len(F), 6), F]).ravel()
+    types = np.full(len(F), pv.CellType.QUADRATIC_TRIANGLE, dtype=np.uint8)
+    grid = pv.UnstructuredGrid(cells, types, P)
+    return grid.extract_surface(algorithm="dataset_surface", nonlinear_subdivision=level)
+
+
+def quadratic_edges(P, F, n=8):
+    """The (curved) edges of the 6-node triangles F as polylines of n points."""
+    E = np.vstack([F[:, [0, 3, 1]], F[:, [1, 4, 2]], F[:, [2, 5, 0]]])
+    E = E[np.unique(np.sort(E[:, [0, 2]], axis=1), axis=0, return_index=True)[1]]
+    t = np.linspace(0, 1, n)[:, None, None]
+    a, m, b = P[E[:, 0]], P[E[:, 1]], P[E[:, 2]]
+    X = (1 - t) * (1 - 2 * t) * a + 4 * t * (1 - t) * m + t * (2 * t - 1) * b
+    lines = np.column_stack([np.full(len(E), n), np.arange(len(E) * n).reshape(n, -1).T])
+    return pv.PolyData(X.reshape(-1, 3), lines=lines.ravel())
+
+
+def curved(raw, work):
+    """A dendritic spine of a small crop with straight (P1) and curved (P2) tets,
+    colored by the distance to the input surface and crinkle-clipped inside the
+    crop box, and the distance and quality of all membranes and tets of the crop."""
+    work.mkdir(parents=True, exist_ok=True)
+    paths = [work / f"curved_{n}" for n in ("surf.vtk", "p1.vtu", "p2.vtu")]
+    if not all(p.exists() for p in paths):
+        img = labels(pv.read(raw))[CURVED_CROP]
+        ops = [["removeislands", "minsize=500"], ["smooth", "iterations=1", "radius=1"]]
+        ops += [["erode", "radius=1"]]
+        grid, *_ = process_image(np2pv(img, pv.read(raw).spacing), dx=CURVED_DX, operations=ops)
+        surf = extract_surface(np2pv(remove_pinches(labels(grid)), [CURVED_DX] * 3))
+        eps = 0.5 * CURVED_DX
+        p1, _ = mesh_surface(surf, envelopsize=eps, simplify_eps=eps, edge_length_fac=0.06)
+        for mesh, path in zip([surf, p1, curve_mesh(p1, surf)], paths):
+            mesh.save(path)
+    surf, p1, p2 = (pv.read(p) for p in paths)
+    meshes = {"straight (P1)": convert_to_quadratic(p1), "curved (P2)": p2}
+
+    cells = [c for c in np.unique(p1["label"]) if c >= 2]
+    target = label_volumes(surf.points, surf.regular_faces, surf.cell_data["boundary_labels"])
+    L = surf.cell_data["boundary_labels"]
+    inner = surf.extract_cells(np.flatnonzero(L.min(1) >= 1))
+    dist = {}
+    for name, mesh in meshes.items():
+        err = np.abs(compute_surface_volume(mesh, cells)[0] / target[cells] - 1)
+        dist[name] = distance(membranes(mesh), inner)
+        print(
+            f"{name}: cell volume error mean {err.mean():.1%}, max {err.max():.1%}; "
+            f"membrane distance mean {dist[name].mean():.2f} nm, "
+            f"95th percentile {np.percentile(dist[name], 95):.1f} nm, max {dist[name].max():.1f} nm"
+        )
+
+    sheet = surf.extract_cells(np.flatnonzero((L == CURVED_CELL).any(1)))
+    cell = p2.extract_cells(p2["label"] == CURVED_CELL)
+    axes = np.linalg.svd(cell.points - cell.points.mean(axis=0), full_matrices=False)[2]
+    proj = cell.points @ axes[0]
+    if np.mean(proj) < 0.5 * (proj.min() + proj.max()):
+        axes[0] *= -1  # head (the bulk of the points) on top
+        proj = -proj
+    length = np.ptp(proj)
+    center = cell.points.mean(axis=0) + (0.5 * (proj.min() + proj.max()) - proj.mean()) * axes[0]
+    head = center + 0.3 * length * axes[0]
+    camera = dict(view=axes[2], up=axes[0])
+    lo, hi = np.array(surf.bounds[::2]) + CURVED_DX, np.array(surf.bounds[1::2]) - CURVED_DX
+    inside = lambda P: ((P > lo) & (P < hi)).all(axis=-1).all(axis=-1)  # noqa: E731
+    input_cell = sheet.extract_surface(algorithm="dataset_surface")
+    input_cell = input_cell.extract_cells(inside(input_cell.points[input_cell.regular_faces]))
+    input_cell = input_cell.extract_surface(algorithm="dataset_surface")
+    input_cell["distance (nm)"] = np.zeros(input_cell.n_points)
+    full = [
+        render(
+            input_cell,
+            input_cell.extract_all_edges(),
+            center,
+            0.55 * length,
+            (600, 1400),
+            1,
+            **camera,
+        )
+    ]
+    zoom = []
+    for name, mesh in meshes.items():
+        sub = mesh.extract_cells(mesh["label"] == CURVED_CELL)
+        membrane = {tuple(sorted(f[:3])) for f in _tet_face_topology(sub)["boundary_faces"]}
+        # crinkle clip: the whole tets inside the crop box, shrunk by one voxel
+        tets = sub.cells_dict[pv.CellType.QUADRATIC_TETRA]
+        kept = sub.extract_cells(inside(sub.points[tets[:, :4]]))
+        F = _tet_face_topology(kept)["boundary_faces"]
+        ids = np.asarray(kept["vtkOriginalPointIds"])
+        cut = np.array([tuple(sorted(ids[f[:3]])) not in membrane for f in F])
+        faces = quadratic_faces(kept.points, F[~cut], 4)
+        faces["distance (nm)"] = distance(faces, sheet)
+        extra = quadratic_faces(kept.points, F[cut], 4)
+        edges = quadratic_edges(kept.points, F, 12)
+        full.append(
+            render(faces, edges, center, 0.55 * length, (600, 1400), 1.5, cut=extra, **camera)
+        )
+        zoom.append(
+            render(
+                faces, edges, head, 0.21 * length, (800, 800), 4, cut=extra, trim=False, **camera
+            )
+        )
+
+    fig_w, fig_h, img_h = 11, 4.6, 0.8  # figure size (in) and image height (figure units)
+    fig = plt.figure(figsize=(fig_w, fig_h))
+    h = max(v.shape[0] for v in full)
+    x = 0.0
+    for v, title in zip(full, ["input surface", *meshes]):
+        wi = v.shape[1] / h * img_h * fig_h / fig_w
+        ax3d = fig.add_axes([x, 0.15, wi, img_h * v.shape[0] / h])
+        ax3d.imshow(v)
+        ax3d.set_axis_off()
+        ax3d.set_title(title, fontsize=10)
+        x += wi + 0.02
+    zw = 0.5 * img_h * fig_h / fig_w  # square zooms, stacked
+    for k, (v, title) in enumerate(zip(zoom, meshes)):
+        axz = fig.add_axes([x, 0.15 + (1 - k) * 0.5 * img_h, zw, 0.5 * img_h - 0.01])
+        axz.imshow(v)
+        axz.set_xticks([])
+        axz.set_yticks([])
+        axz.set_ylabel(title.split()[0], fontsize=8)
+        if k == 0:
+            axz.set_title("spine head", fontsize=10)
+    cax = fig.add_axes([0.03, 0.07, x + zw - 0.06, 0.025])
+    sm = plt.cm.ScalarMappable(plt.Normalize(*CURVED_CLIM), CURVED_CMAP)
+    cbar = fig.colorbar(sm, cax=cax, orientation="horizontal")
+    cbar.set_label("distance to the input surface (nm)", fontsize=9)
+    hist_x, hist_w = x + zw + 0.05, 0.97 - x - zw - 0.05
+    ax = fig.add_axes([hist_x, 0.62, hist_w, 0.3])
+    bins = np.linspace(0, CURVED_CLIM[1], 41)
+    for (name, d), color in zip(dist.items(), ["tab:red", "tab:blue"]):
+        label = f"{name}, mean {d.mean():.1f} nm"
+        w = np.full(len(d), 1 / len(d))  # fractions of all samples, also those beyond the bins
+        ax.hist(d, bins=bins, weights=w, histtype="stepfilled", alpha=0.4, color=color)
+        ax.hist(d, bins=bins, weights=w, histtype="step", color=color, label=label)
+    ax.set_xlabel("distance to the input surface (nm)", fontsize=9)
+    ax.set_yticks([])
+    ax.set_title("all membranes of the crop", fontsize=10)
+    ax.spines[["left", "top", "right"]].set_visible(False)
+    ax.legend(frameon=False, fontsize=8)
+
+    ax = fig.add_axes([hist_x, 0.15, hist_w, 0.3])
+    bins = np.linspace(0, 1, 41)
+    for (name, mesh), color in zip(meshes.items(), ["tab:red", "tab:blue"]):
+        q = compute_quadratic_quality(mesh)
+        label = f"{name}, mean {q.mean():.2f}, min {q.min():.2f}"
+        print(f"{name}: quality {label.split(', ', 1)[1]}")
+        w = np.full(len(q), 1 / len(q))
+        ax.hist(q, bins=bins, weights=w, histtype="stepfilled", alpha=0.4, color=color)
+        ax.hist(q, bins=bins, weights=w, histtype="step", color=color, label=label)
+    ax.set_ylim(top=1.5 * ax.get_ylim()[1])
+    ax.set_xlabel("cell quality (min. scaled Jacobian)", fontsize=9)
+    ax.set_yticks([])
+    ax.set_title("all tetrahedra of the crop", fontsize=10)
+    ax.spines[["left", "top", "right"]].set_visible(False)
+    ax.legend(frameon=False, fontsize=8, loc="upper left")
+    fig.savefig(outdir / "curved.png", dpi=150, bbox_inches="tight")
+
+
+def render(faces, edges, focal, scale, size, line_width, view, up, cut=None, trim=True):
+    """Parallel projection of faces colored by distance, with their edges and
+    the (gray) faces of a clip."""
+    p = pv.Plotter(window_size=size, border=False)
+    p.add_mesh(
+        faces,
+        scalars="distance (nm)",
+        cmap=CURVED_CMAP,
+        clim=CURVED_CLIM,
+        smooth_shading=True,
+        show_scalar_bar=False,
+    )
+    if cut is not None and cut.n_cells:
+        p.add_mesh(cut, color="lightgray", smooth_shading=True)
+    p.add_mesh(edges, color="k", line_width=line_width)
+    p.enable_parallel_projection()
+    p.camera.focal_point = focal
+    p.camera.position = focal + 10 * scale * view
+    p.camera.up = up
+    p.camera.parallel_scale = scale
+    img = p.screenshot(return_img=True)
+    p.close()
+    if trim:
+        rows, cols = np.nonzero((img < 250).any(axis=2))
+        img = img[rows.min() : rows.max() + 1, cols.min() : cols.max() + 1]
+    return img
+
+
+def distance(mesh, surf):
+    """Distance of the points of mesh to surf."""
+    _, closest = surf.find_closest_cell(mesh.points, return_closest_point=True)
+    return np.linalg.norm(closest - mesh.points, axis=1)
+
+
+def membranes(quad):
+    """Interfaces between the regions of a quadratic mesh, subdivided."""
+    f = mark_interfaces(quad, outer_offset=np.iinfo(np.int32).max // 2)
+    f = f.extract_cells(f["boundaries"] < np.iinfo(np.int32).max // 2)
+    return f.extract_surface(algorithm="dataset_surface", nonlinear_subdivision=4)
+
+
 if __name__ == "__main__":
     raw, work = Path(sys.argv[1]), Path(sys.argv[2])
-    figures = sys.argv[3:] or ["pinches", "handles", "ecs"]
-    surfs, fills = prepare(raw, work)
+    figures = sys.argv[3:] or ["pinches", "handles", "ecs", "curved"]
+    if {"handles", "ecs"} & set(figures):
+        surfs, fills = prepare(raw, work)
     if "pinches" in figures:
         pinches(raw, work)
     if "handles" in figures:
         handles(surfs, fills)
     if "ecs" in figures:
         ecs(surfs, work)
+    if "curved" in figures:
+        curved(raw, work)
