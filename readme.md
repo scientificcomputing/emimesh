@@ -3,179 +3,128 @@
 
 <img src='images/grand_challenge_mesh2.png' width='400'>
 
-This repo provides a pipeline to generate high quality tetrahedral meshes of brain tissue on the cellular scale suitable for numerical simulations.
-
-## Features:
-
-- generates high quality meshes of dense reconstructions of the neuropil
-- both extracellular and intracellular space included
-- automated pipeline from segmentation to mesh
-- image processing steps included, to account for e.g. missing ECS from chemically fixated tissue
+EMI-Mesh generates tetrahedral meshes of brain tissue at the cellular scale, including the extracellular space (ECS), from segmented electron microscopy data. The meshes are suitable for numerical simulations.
 
 ## Getting started
 
-First, install snakemake (using conda):
+Install snakemake (using conda):
 
-`conda create -c conda-forge -c bioconda -n snakemake snakemake snakemake-storage-plugin-http snakemake-executor-plugin-cluster-generic`
+```
+conda create -c conda-forge -c bioconda -n snakemake snakemake snakemake-storage-plugin-http snakemake-executor-plugin-cluster-generic
+conda activate snakemake
+```
 
-and activate it:
-`conda activate snakemake`
+Then run the pipeline on an example configuration:
 
-Then, run snakemake on an example configuration file, with e.g.
+```
+snakemake --configfile config_files/cortical_mm3.yml --use-conda --cores 8
+```
 
-`snakemake --configfile configfiles/cortical_mm3.yml --use-conda --cores 8`
+## Pipeline
 
+<img src='images/pipeline_overview.png' width='800'>
 
-## Intended Workflow
-Emimesh works with `.yaml` configuration files (see `config_files/` for examples). In one file, you specify:
+- **A. Data download** of the segmentation (cloud-volume or webknossos).
+- **B. Image processing:** resampling and a sequence of morphological [operations](#image-processing-operations) on the labels. These set the rough ECS share, separate the cells and repair topology.
+- **C. Surface extraction:** one multi-label surface of all cells and the ECS, made with surface nets and smoothed. Points on the bounding box stay on their box face. Optionally, the [ECS share](#ecs-share) is fine-tuned on the surface.
+- **D. Tetrahedral mesh:** the surface is simplified and tetrahedralized with [fTetWild](https://github.com/wildmeshing/fTetWild). Each tetrahedron is labelled by the generalized winding number of the surface.
 
-- the base dataset, position and size, using [webknossos](https://home.webknossos.org/publications) or [neuroglancer](https://github.com/google/neuroglancer/) (example: cortical MM^3 dataset at position [225182-107314-22000](https://ngl.microns-explorer.org/#!%7B%22dimensions%22:%7B%22x%22:%5B4e-9%2C%22m%22%5D%2C%22y%22:%5B4e-9%2C%22m%22%5D%2C%22z%22:%5B4e-8%2C%22m%22%5D%7D%2C%22position%22:%5B225182.5%2C107314.5%2C22000.5%5D%2C%22crossSectionScale%22:11.406101410482504%2C%22projectionOrientation%22:%5B0.1528419554233551%2C0.49656152725219727%2C0.39075320959091187%2C0.7598538994789124%5D%2C%22projectionScale%22:40961.499900183306%2C%22layers%22:%5B%7B%22type%22:%22image%22%2C%22source%22:%7B%22url%22:%22precomputed://https://bossdb-open-data.s3.amazonaws.com/iarpa_microns/minnie/minnie65/em%22%2C%22subsources%22:%7B%22default%22:true%7D%2C%22enableDefaultSubsources%22:false%7D%2C%22tab%22:%22source%22%2C%22annotationColor%22:%22#7d7d7d%22%2C%22shaderControls%22:%7B%22normalized%22:%7B%22range%22:%5B86%2C172%5D%7D%7D%2C%22name%22:%22img%22%7D%2C%7B%22type%22:%22segmentation%22%2C%22source%22:%7B%22url%22:%22precomputed://gs://iarpa_microns/minnie/minnie65/seg%22%2C%22subsources%22:%7B%22default%22:true%2C%22mesh%22:true%7D%2C%22enableDefaultSubsources%22:false%7D%2C%22tab%22:%22segments%22%2C%22annotationColor%22:%22#949494%22%2C%22selectedAlpha%22:0.3%2C%22segments%22:%5B%22864691134947427836%22%2C%22864691135337771494%22%2C%22864691135393949941%22%2C%22864691135462270365%22%2C%22864691135474669888%22%2C%22864691135617729935%22%2C%22864691135718476593%22%2C%22864691136024102713%22%2C%22864691136390364287%22%2C%22864691136436690846%22%5D%2C%22segmentQuery%22:%22864691136194301772%2C%20864691136814938734%22%2C%22colorSeed%22:3728349837%2C%22name%22:%22seg%22%7D%5D%2C%22showAxisLines%22:false%2C%22showSlices%22:false%2C%22selectedLayer%22:%7B%22visible%22:true%2C%22layer%22:%22seg%22%7D%2C%22layout%22:%7B%22type%22:%224panel%22%2C%22orthographicProjection%22:true%7D%2C%22selection%22:%7B%22layers%22:%7B%22seg%22:%7B%22annotationId%22:%22data-bounds%22%2C%22annotationSource%22:0%2C%22annotationSubsource%22:%22bounds%22%7D%7D%7D%7D))
-- segmentation processing steps and meshing parameters
+## Configuration
 
-Then, emimesh will do the following steps for you:
-- download segmented image data
-- preprocess the image for meshing
-- extract one multi-label surface of all cells and the extracellular space (ECS) with surface nets, and smooth it (points on the bounding box stay on their box face)
-- optionally adjust the ECS volume share
-- simplify the surface and generate a volumetric mesh of the whole domain with [fTetWild](https://github.com/wildmeshing/fTetWild); each tetrahedron is labeled by the generalized winding number of the surface
+A configuration file has the sections `raw`, `processing`, `surface` (optional) and `meshing`. For example:
 
-A simple configuration file could look like this:
 ```yaml
-name : cortical_mm3 # will only be used for naming the output folder
+name : cortical_mm3            # name of the output folder
 raw:
-  cloudpath : "precomputed://gs://iarpa_microns/minnie/minnie65/seg" # cloud volume datapath
-  mip : 2 # resolution level (usually 0 corresponds to finest, and higher mips provides upsampled data)
-  position : "225182-107314-22000" # center of the dataset
-  size : 5000  # side length of the dataset (in physical dimension, usually nm)
+  cloudpath : "precomputed://gs://iarpa_microns/minnie/minnie65/seg"
+  mip : 2                      # resolution level (0 = finest)
+  position : "225182-107314-22000"   # center, in voxels of the dataset
+  size : 5000                  # side length in nm, or "x-y-z"
 processing:
-  dx : 20        # isotropic voxels size for resampling before processing
-  operation : 
-    - "smooth iterations=1 radius=1" # smooth the segmentation before meshing
+  dx : 20                      # isotropic voxel size (nm) for resampling
+  operation :
+    - "smooth iterations=1 radius=1"
+    - "erode radius=1"
+    - "remove_pinches"
 meshing:
-  envelopsize : 18 # maximum deviation of the tetrahdral mesh interfaces from the input surfaces (in physical dimension, usually nm).
+  envelopsize : 18             # max. deviation of the mesh from the surface (nm)
 ```
 
-## Configuration Reference
+| Section | Option | Description |
+| :--- | :--- | :--- |
+| `processing` | **`ncells`** | Keep only the `N` largest cells. |
+| `surface` | **`smoothing_scale`** | Maximal displacement of the surface points during smoothing, in voxels (default: 1.2). |
+| | **`smoothing_iterations`** | Number of smoothing iterations (default: 16). |
+| | **`ecs_share`** | Target ECS volume share (0–1); see [below](#ecs-share). |
+| | **`ecs_min_width`** | Minimal thickness of cells and ECS gaps (nm) during the ECS adjustment (default: 10). |
+| `meshing` | **`stopquality`** | fTetWild quality score (default: 10). Higher values stop earlier, giving lower quality. |
+| | **`simplify_eps`** | Maximal deviation of the simplified surface (nm, default: 0.5 voxels). `0` disables simplification. |
+| | **`edge_length_fac`** | fTetWild target edge length, relative to the bounding box diagonal (default: 0.05). |
 
-The configuration file is divided into `raw`, `processing`, `surface` (optional), and `meshing`.
+## Image processing operations
 
-### Raw Data (`raw`)
-Controls data download and extent.
-
-| Option | Description |
-| :--- | :--- |
-| **`cloudpath`** | URI to the data source. Supports `precomputed://` (cloud-volume) or webknossos URLs. |
-| **`position`** | Center coordinates of the volume in `x-y-z` format (integer pixels). |
-| **`mip`** | Resolution level. `0` is the highest resolution. Higher integers indicate downsampled versions. |
-| **`size`** | Dimensions of the volume to download in physical units (nm). Can be a single integer `[5000]` for a cube, or `"dx-dy-dz"` for a bounding box (where `dx`,`dy` and `dz` are integer values). |
-
-### Processing Settings (`processing`)
-Controls general resampling and filtering.
-
-| Option | Description |
-| :--- | :--- |
-| **`dx`** | Target isotropic resolution (nm). The downloaded data will be resampled to this resolution before operations are applied. |
-| **`ncells`** | (Optional) Integer. If specified, only the largest `N` cells by volume are kept in the final mesh. |
-
-### Surface Settings (`surface`, optional)
-Controls the surface extraction.
-
-| Option | Description |
-| :--- | :--- |
-| **`smoothing_scale`** | (Optional) Maximal displacement of the surface points during smoothing, in voxels (default: 1.2). |
-| **`smoothing_iterations`** | (Optional) Number of smoothing iterations (default: 16). |
-| **`ecs_share`** | (Optional) Target ECS volume share (0-1). If set, the cell-ECS interfaces are moved until the ECS takes this share of the volume. |
-| **`ecs_min_width`** | (Optional) Minimal thickness of cells and ECS gaps (nm) for the ECS share adjustment (default: 10). |
-
-### Meshing Settings (`meshing`)
-Controls the surface simplification and the `fTetWild` meshing engine.
-
-| Option | Description |
-| :--- | :--- |
-| **`envelopsize`** | The "envelope" size (epsilon) for fTetWild, in nm. This defines how much the final tetrahedral mesh surface is allowed to deviate from the input surface. Larger values allow for coarser meshes with fewer elements. |
-| **`stopquality`** | (Optional) fTetWild quality score (default: 10). Controls the trade-off between mesh quality and fidelity. Higher values stop optimization earlier (at the expense of mesh quality). |
-| **`simplify_eps`** | (Optional) Maximal deviation of the simplified surface from the smoothed surface, in nm (default: 0.5 voxels). `0` disables the simplification. |
-| **`edge_length_fac`** | (Optional) fTetWild target edge length, relative to the bounding box diagonal (default: 0.05). |
-
-## Image Processing Operations
-
-A key part of the EMI-Mesh workflow is the `processing` block in your config file. You can define a sequential list of operations to clean, smooth, and manipulate the segmentation data before meshing. The operations are based on [nbmorph](https://github.com/MariusCausemann/nbmorph) and are multithreaded.
-
-Operations are defined as a list of strings under `processing: operation`. Each string follows the format:
-`"command arg1=value1 arg2=value2 ..."`
-
-### Available Operations
+Operations are listed under `processing: operation` as strings of the form `"command arg1=value1 ..."` and are applied in order. They are based on [nbmorph](https://github.com/MariusCausemann/nbmorph) and are multithreaded. Any `labels` argument refers to the cell IDs of the original segmentation.
 
 | Operation | Arguments | Description |
 | :--- | :--- | :--- |
-| **`merge`** | `labels` (list) | Merges all provided labels into the first label in the list. Useful for combining fragments of the same cell. |
-| **`ncells`** | `ncells` (int)<br>`keep_cell_labels` (list, optional) | Filters the image to keep only the *N* largest cells (by volume). Use `keep_cell_labels` to ensure specific IDs are not filtered out. |
-| **`dilate`** | `radius` (int)<br>`labels` (list, optional) | Expands labels by the specified radius (in pixels). If `labels` is provided, only those specific cells are dilated. |
-| **`erode`** | `radius` (int)<br>`labels` (list, optional)<br>`struct_sequence` (str, optional) | Shrinks labels by the specified radius. If `labels` is provided, only those specific cells are eroded. `struct_sequence` gives the structuring elements per step (`D` diamond, `B` box); the default is `B` for `radius=1` (no cells touching at voxel corners) and `DDB` otherwise. |
-| **`smooth`** | `radius` (int)<br>`iterations` (int)<br>`labels` (list, optional) | smooths the cell boundaries using morphological opening and closing. |
-| **`removeislands`** | `minsize` (int) | Removes disconnected components (dust) smaller than the specified voxel count. |
-| **`remove_pinches`** | `separate_cells` (bool, default true)<br>`max_iterations` (int, default 20) | Repairs voxels that touch only along an edge or at a corner, which would otherwise give non-manifold surfaces (and touching cells) in the surface extraction. Use it as the last operation. |
-| **`fill_handles`** | `thickness` (int, default 3)<br>`max_loop_length` (int, default 400)<br>`workers` (int, default 1) | Closes the handles (tunnels) of cells with thin membranes, so that each cell is free of handles. Use it before `remove_pinches`. See `examples/pinches_and_handles.py`. |
+| **`merge`** | `labels` | Merge all labels into the first one. |
+| **`ncells`** | `ncells`, `keep_cell_labels` | Keep the `N` largest cells, plus the listed ones. |
+| **`dilate`** / **`erode`** | `radius`, `labels` | Grow or shrink all cells, or only the listed ones. `erode` also takes `struct_sequence` (default: `B` for `radius=1`, `DDB` otherwise). |
+| **`smooth`** | `radius`, `iterations`, `labels` | Morphological opening and closing. |
+| **`removeislands`** | `minsize` | Remove components smaller than `minsize` voxels. |
+| **`fill_handles`** | `thickness`, `max_loop_length`, `workers` | Close handles (tunnels) of cells with thin membranes. |
+| **`remove_pinches`** | `separate_cells`, `max_iterations` | Repair voxels that touch only at an edge or corner. Use it as the last operation. |
+| **`roigenerate`** / **`roiapply`** | `labels` | Create a mask from the listed cells, and later set everything outside it to 0. |
+| **`roi<op>`** | as `<op>` | Apply an operation to the mask, e.g. `roidilate radius=80`. |
 
-### Region of Interest (ROI) Operations
-You can generate a mask (ROI) based on specific cells and apply operations to that mask before applying it back to the image. This is useful for masking out areas surrounding specific cells.
+See `config_files/` for complete examples, e.g. `cappilary1.yml` for an ROI around a capillary.
 
-| Operation | Arguments | Description |
-| :--- | :--- | :--- |
-| **`roigenerate`** | `labels` (list) | Creates a binary ROI mask containing the specified labels. |
-| **`roiapply`** | *None* | Applies the current ROI mask to the image (sets everything outside the ROI to 0/ECS). |
-| **`roi<op>`** | *Same as op* | Applies a standard operation to the *ROI mask* itself (e.g., `roidilate radius=10`, `roierode`). |
+### Pinches and handles
+Voxels of a cell that touch only at an edge or corner (*pinches*) give non-manifold surfaces. Below, the upper and lower surfaces of a thin cell meet along a crease of pinches (red, left). The voxel plane across the crease (blue, right) shows why: there the cell is a chain of voxels that touch only diagonally. `remove_pinches` adds single voxels (outlined), so that the cell is face-connected and its surfaces separate. On a dense 2 µm MICrONS crop, it removes all pinches.
 
-### Examples
+<img src='images/pinches.png' width='700'>
 
-**1. Basic Smoothing and Cleaning**
-Standard cleanup for a cortical volume.
-```yaml
-processing:
-  operation:
-    - "removeislands minsize=5000"    # Remove small noise
-    - "dilate radius=1"               # Close small gaps
-    - "smooth iterations=1 radius=1"  # Smooth boundaries
-    - "erode radius=1"                # Create gaps between cells
-    - "remove_pinches"                # Repair edge/corner contacts
-```
+`fill_handles` closes handles (tunnels) through a cell with a thin membrane:
 
-**2. Targeting a Specific Cell (Astrocyte)**
-Filter for 1 cell, but ensure a specific ID is kept, then smooth.
-```yaml
-processing:
-  operation:
-    - "ncells ncells=1 keep_cell_labels='[864691136194301772]'"
-    - "smooth iterations=1 radius=2"
-    - "erode radius=1"
-    - "remove_pinches"
-```
+<img src='images/handles.png' width='500'>
 
-**3. Complex ROI Manipulation (Capillary)**
-Merge fragments, clean noise, then create a large masked area around a specific capillary cell to exclude distant neighbors.
-```yaml
-processing:
-  operation:
-    # Merge fragmented labels into one ID
-    - "merge labels='[864691136534887842, 864691135476973891]'"
-    # Clean up
-    - "removeislands minsize=5000"
-    - "dilate radius=5"
-    - "smooth iterations=2 radius=4"
-    - "erode radius=1"
-    # Create a mask based on the main capillary label
-    - "roigenerate labels='[864691136534887842]'"
-    # Expand the mask significantly
-    - "roidilate radius=80"
-    # Apply mask (delete everything outside the expanded capillary area)
-    - "roiapply"
-    # Repair edge/corner contacts (last operation)
-    - "remove_pinches"
+Handles of cells that are cut by the faces of the volume can be artefacts of the cut, and are then closed as well.
+
+### ECS share
+With `surface: ecs_share`, all cell–ECS interfaces are moved by a common offset until the ECS takes that share of the volume. The bounding box is kept, and cells and gaps stay at least `ecs_min_width` thick. Below, the ECS share of a dense crop is lowered from 23 % to 18 % (right: zoomed region, with the voxel grid).
+
+<img src='images/ecs_share.png' width='700'>
+
+This adjustment is limited in range: the minimal widths soon stop the interfaces, and on a test volume it could only go from 21 % to about 26 %. Set the rough ECS share with the voxel operations (e.g. `erode`, `dilate`), and use `ecs_share` to fine-tune it.
+
+## Python API
+The pipeline steps can also be called from Python:
+
+```python
+import pyvista as pv
+from imagemesh.image import np2pv
+from imagemesh.tetmesh import mesh_surface
+
+from emimesh.download_data import download_cloudvolume
+from emimesh.ecs_share import adjust_ecs_share
+from emimesh.extract_surfaces import extract_surface
+from emimesh.process_image_data import process_image
+
+# a 2 µm cube of the MICrONS segmentation (position in voxels, size in nm)
+url = "precomputed://gs://iarpa_microns/minnie/minnie65/seg_m1300"
+img, res = download_cloudvolume(url, mip=1, pos=[162258, 200928, 20530], physical_size=[2000] * 3)
+raw = np2pv(img, res)
+
+ops = [["smooth", "iterations=1", "radius=1"], ["erode", "radius=1"], ["remove_pinches"]]
+img, *_ = process_image(raw, dx=20, operations=ops)  # cells get the labels 2, 3, ...
+surf = extract_surface(img)  # multi-label surface, ECS = 1
+surf, _, share = adjust_ecs_share(surf, 0.25)  # optional, takes a few minutes
+mesh, surf = mesh_surface(surf, envelopsize=20, simplify_eps=10)
+pv.save_meshio("mesh.xdmf", mesh)
 ```
 
 ## Output
-The output consists of the following directories:
-* raw: The downloaded segmentation as in `.vti` format, suitable for e.g. paraview
-* processed: The processed image in `.vti` format
-* surfaces: The multi-label surface in `.vtk` format, with the labels on both sides of each face in the `boundary_labels` cell data: `surf_smooth.vtk` (smoothed), `surf_ecs.vtk` (after the ECS share adjustment, if requested) and `surf_dec.vtk` (simplified, the input of fTetWild). Suitable for visualization with paraview or usage in other meshing software
-* meshes: The generated volumetric meshes in `.xdmf` format, containing labels for the extracellular space (label 1) and increasing integer values (2,..., N) for all cells. A mapping between the labels and the original cell id in the base segmenation is provided in the `processed/.../imagestatistics.yml`file.
+Results are written to `results/<name>/`:
+* `raw/`, `processed/`: the downloaded and the processed label image (`.vti`). `processed/imagestatistic.yml` maps the mesh labels to the original cell IDs.
+* `surfaces/`: the multi-label surfaces (`.vtk`), with the labels on both sides of each face in `boundary_labels`. These are `surf_smooth.vtk`, `surf_ecs.vtk` (only with `ecs_share`) and `surf_dec.vtk` (simplified, the input of fTetWild).
+* `meshes/`: the tetrahedral mesh (`mesh.xdmf`) with cell data `label` (1 = ECS, 2…N = cells), plus mesh statistics and a screenshot.

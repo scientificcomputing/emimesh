@@ -6,7 +6,7 @@ remove_pinches and fill_handles on a small synthetic label image.
 * cell 3 is a square ring (a handle).
 
 The image is repaired as by the processing operations "fill_handles" and
-"remove_pinches", and the surface nets of both versions are saved.
+"remove_pinches", and both versions and their surface nets are saved.
 
 Usage: python examples/pinches_and_handles.py [outdir]
 (the first run takes a few minutes to compile the numba kernels)
@@ -39,7 +39,9 @@ def report(name, img, outdir):
         f"{name}: {count_pinches(img)} pinched cubes, "
         f"cells with handles {labels_with_handles(img, int(img.max())).tolist()}"
     )
-    extract_surface(np2pv(img, [1.0] * 3)).save(outdir / f"surf_{name}.vtk")
+    grid = np2pv(img, [1.0] * 3)
+    grid.save(outdir / f"img_{name}.vti")
+    extract_surface(grid).save(outdir / f"surf_{name}.vtk")
 
 
 if __name__ == "__main__":
