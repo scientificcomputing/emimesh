@@ -5,7 +5,6 @@ from pathlib import Path
 import numba
 import numpy as np
 import fastremap
-import dask
 import yaml
 from emimesh.process_image_data import process_image
 

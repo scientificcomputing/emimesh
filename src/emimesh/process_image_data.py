@@ -1,7 +1,7 @@
 import numpy as np
 import yaml
 import fastremap
-import dask
+import numba
 from pathlib import Path
 
 from imagemesh.handles import fill_handles
@@ -17,8 +17,6 @@ from imagemesh.morphology import (
     zero_edges,
 )
 from imagemesh.pinches import remove_pinches
-
-dask.config.set({"array.chunk-size": "1024 MiB"})
 
 opdict ={"merge": mergecells, "smooth":smooth, "dilate":dilate,
          "erode":erode, "removeislands":removeislands, "ncells":ncells, "mode":mode,
@@ -38,13 +36,32 @@ def parse_operations(ops):
         subargs =  _parse_to_dict(op[1:])
         parsed.append((op[0], subargs))
     return parsed
-    
+
+
+@numba.njit(parallel=True, cache=True)
+def _gather(img, ix, iy, iz):
+    out = np.empty((ix.size, iy.size, iz.size), dtype=img.dtype)
+    for i in numba.prange(ix.size):
+        for j in range(iy.size):
+            for k in range(iz.size):
+                out[i, j, k] = img[ix[i], iy[j], iz[k]]
+    return out
+
+
+def resample_nearest(img, resolution, dx):
+    """Nearest-neighbour resampling of img onto an isotropic grid with spacing dx,
+    mapping voxel centers to voxel centers (identical to scipy's affine_transform
+    with order=0, mode="nearest")."""
+    scales = [dx / r for r in resolution]
+    new_dims = [int(n * r / dx) for n, r in zip(img.shape, resolution)]
+    idx = [np.clip(np.floor(s * np.arange(n) + 0.5 * s), 0, m - 1).astype(np.intp)
+           for s, n, m in zip(scales, new_dims, img.shape)]
+    if img.flags.f_contiguous and not img.flags.c_contiguous:
+        return _gather(img.T, *idx[::-1]).T
+    return _gather(img, *idx)
+
 
 def process_image(imggrid, dx, operations, ncells=None, num_threads=1):
-    import dask.array as da
-    from dask_image.ndinterp import affine_transform
-    import numba
-    from functools import partial
     from imagemesh.image import np2pv
 
     numba.set_num_threads(min(num_threads, numba.config.NUMBA_NUM_THREADS))
@@ -53,7 +70,6 @@ def process_image(imggrid, dx, operations, ncells=None, num_threads=1):
     dims = imggrid.dimensions
     resolution = imggrid.spacing
     img = img.reshape(dims - np.array([1, 1, 1]), order="F")
-    img = da.from_array(img)
 
     # get cells labels, and filter by n-largest (if requested)
     cell_labels, cell_counts = fastremap.unique(img, return_counts=True)
@@ -61,7 +77,7 @@ def process_image(imggrid, dx, operations, ncells=None, num_threads=1):
         cell_labels = list(cell_labels[np.argsort(cell_counts)])
         cell_labels.remove(0)
         cois = list(cell_labels[-ncells :])
-        img = da.where(da.isin(img, cois), img, 0)
+        img = fastremap.mask_except(img, cois)
     else:
         cell_labels = list(cell_labels)
         if 0 in cell_labels: cell_labels.remove(0)
@@ -69,16 +85,11 @@ def process_image(imggrid, dx, operations, ncells=None, num_threads=1):
     # remap labels to smaller, sequential ints
     remapping = {int(c):i for i,c in enumerate([0] + cell_labels)}
     remap = lambda ids: [remapping[int(i)] for i in ids if i in remapping.keys()]
-    img = img.map_blocks(partial(fastremap.remap, table=remapping), dtype=img.dtype)
-    img = img.map_blocks(partial(fastremap.refit, value=len(cell_labels)))
+    img = fastremap.remap(img, remapping)
+    img = fastremap.refit(img, value=len(cell_labels))
 
     # interpolate into the specified, isotropic grid with size dx
-    scale = np.diag([dx / r for r in resolution] + [1])
-    scale[:3, 3] = 0.5 * np.diag(scale)[:3] - 0.5  # map voxel centers to voxel centers
-    new_dims = [int(n * r / dx) for n,r in zip(img.shape, resolution)]
-    img = affine_transform(img, scale, output_shape=new_dims, order=0,
-                           mode="nearest", output_chunks=500)
-    img = dask.compute(img, num_workers=num_threads)[0]
+    img = resample_nearest(img, resolution, dx)
     print(f"image size: {img.shape}")
     resolution = np.array([dx]*3)
     roi = None
@@ -117,12 +128,10 @@ def process_image(imggrid, dx, operations, ncells=None, num_threads=1):
     cell_labels = list(cell_labels[np.argsort(cell_counts)])
     if 0 in cell_labels: cell_labels.remove(0)
 
-    img = da.array(img)
     remapping2 = {0:0}
     remapping2.update({int(c):i + 2 for i,c in enumerate(cell_labels)})
-    img = img.map_blocks(partial(fastremap.remap, table=remapping2), dtype=img.dtype)
-    img = img.map_blocks(partial(fastremap.refit, value=max(remapping2.values())))
-    img = dask.compute(img, num_workers=num_threads)[0]
+    img = fastremap.remap(img, remapping2, in_place=True)
+    img = fastremap.refit(img, value=max(remapping2.values()))
 
     imggrid = np2pv(img, resolution)
     if roi is not None:
