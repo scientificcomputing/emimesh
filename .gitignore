@@ -7,6 +7,7 @@ logs/
 build
 .cache
 *.npy
+*.h5
 *.log
 *.vtk
 *.xdmf
