@@ -8,6 +8,7 @@ dependencies = [
     "scikit-image",
     "meshio",
     "h5py",
+    "pyyaml",
     "seaborn",
     "pytetwild",
     "fastremap",
