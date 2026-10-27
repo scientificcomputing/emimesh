@@ -74,9 +74,10 @@ def process_image(imggrid, dx, operations, ncells=None, num_threads=1):
 
     # interpolate into the specified, isotropic grid with size dx
     scale = np.diag([dx / r for r in resolution] + [1])
-    new_dims = [int(d * r / dx) for d,r in zip(dims, resolution)]
+    scale[:3, 3] = 0.5 * np.diag(scale)[:3] - 0.5  # map voxel centers to voxel centers
+    new_dims = [int(n * r / dx) for n,r in zip(img.shape, resolution)]
     img = affine_transform(img, scale, output_shape=new_dims, order=0,
-                           output_chunks=500)
+                           mode="nearest", output_chunks=500)
     img = dask.compute(img, num_workers=num_threads)[0]
     print(f"image size: {img.shape}")
     resolution = np.array([dx]*3)
@@ -114,7 +115,7 @@ def process_image(imggrid, dx, operations, ncells=None, num_threads=1):
     # remap labels to smaller, sequential ints again, since many labels might have disappeared...
     cell_labels, cell_counts = fastremap.unique(img, return_counts=True)
     cell_labels = list(cell_labels[np.argsort(cell_counts)])
-    cell_labels.remove(0)
+    if 0 in cell_labels: cell_labels.remove(0)
 
     img = da.array(img)
     remapping2 = {0:0}
