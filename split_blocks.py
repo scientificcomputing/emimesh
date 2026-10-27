@@ -109,18 +109,39 @@ labels = surf.cell_data["boundary_labels"]
 surf = pv.PolyData.from_regular_faces(points, triangulate_quads(points, quads))
 surf.cell_data["boundary_labels"] = np.repeat(labels, 2, axis=0)
 
-# 3. Whole domain surface: original labels, faces inside a cell or the ECS dropped
-bl = surf.cell_data["boundary_labels"]
-bl = np.where(bl >= offset, bl - offset, bl)
-keep = bl[:, 0] != bl[:, 1]
-sub_surface(surf, keep, bl[keep]).save("full_surf_smooth.vtk")
+# 3. Simplify the whole surface once, with the labels of the top block still
+#    shifted: the caps (a, a + offset) are patches of their own, and an
+#    interface crossing the cut plane is two patches meeting in a feature
+#    curve in the plane. Curve vertices only collapse along their curve and
+#    vertices are kept where they are (endpoint placement), so the caps stay
+#    in the plane and both blocks see the same simplified traces and caps.
+#    The cap edges are kept below tetopt's default L = 0.05 * diagonal: the
+#    seam edges are never split
+edge_length = 0.05 * np.linalg.norm(np.array(imggrid.dimensions) - 1) * dz
+smooth = surf
+surf = simplify_surface(smooth, epsilon=dx * 0.05, max_edge_length=edge_length)
+print(f"whole surface: {smooth.n_points} -> {surf.n_points} points after simplification")
+# the joint surface for the seam optimization in tetopt: labels of the top
+# block shifted by offset, the cap faces (a, a + offset) on the plane z_cut
+joint = surf.copy()
+joint.field_data["offset"] = [offset]
+joint.field_data["z_cut"] = [z_cut]
+joint.save("joint_surf_dec.vtk")
 
-# 4. Closed block surfaces. The cut plane vertices are kept in the
-#    simplification, so the caps stay identical
-for name, top in (("top", True), ("bottom", False)):
-    block = block_surface(surf, top, offset)
-    block.save(f"{name}_surf_smooth.vtk")
-    on_cut = np.isclose(block.points[:, 2], z_cut, rtol=0, atol=1e-3 * dz)
-    block = simplify_surface(block, epsilon=dx * 0.05, fixed=on_cut)
-    print(f"{name}: {block.n_points} points after simplification")
-    block.save(f"{name}_surf_dec.vtk")
+
+def full_surface(surf):
+    """Original labels, faces inside a cell or the ECS dropped."""
+    bl = surf.cell_data["boundary_labels"]
+    bl = np.where(bl >= offset, bl - offset, bl)
+    keep = bl[:, 0] != bl[:, 1]
+    return sub_surface(surf, keep, bl[keep])
+
+
+# 4. Whole domain surface and closed block surfaces, before and after the
+#    simplification. The caps of the blocks are identical
+for suffix, s in (("smooth", smooth), ("dec", surf)):
+    full_surface(s).save(f"full_surf_{suffix}.vtk")
+    for name, top in (("top", True), ("bottom", False)):
+        block = block_surface(s, top, offset)
+        block.save(f"{name}_surf_{suffix}.vtk")
+        print(f"{name}_surf_{suffix}: {block.n_points} points")
