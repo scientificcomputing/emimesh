@@ -125,7 +125,7 @@ ops = [
 img, *_ = process_image(raw, dx=20, operations=ops)  # cells get the labels 2, 3, ...
 surf = extract_surface(img)  # multi-label surface, ECS = 1
 surf, _, share = adjust_ecs_share(surf, 0.25)  # optional, takes a few minutes
-mesh, _ = mesh_surface(surf, envelopsize=20, simplify_eps=10)
+mesh, _ = mesh_surface(surf, envelopsize=10, simplify_eps=3)
 mesh = curve_mesh(mesh, surf)  # optional: curved 10-node tetrahedra
 pv.save_meshio("mesh.xdmf", mesh)
 ```
