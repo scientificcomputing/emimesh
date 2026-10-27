@@ -118,14 +118,14 @@ img, res = download_cloudvolume(url, mip=1, pos=[162258, 200928, 20530], physica
 raw = np2pv(img, res)
 
 ops = [
-    ["smooth", "iterations=1", "radius=1"],
+    ["smooth", "iterations=1", "radius=2"],
     ["erode", "radius=1"],
     ["removeislands", "minsize=150"],  # fragments too small to mesh
 ]
 img, *_ = process_image(raw, dx=20, operations=ops)  # cells get the labels 2, 3, ...
 surf = extract_surface(img)  # multi-label surface, ECS = 1
-surf, _, share = adjust_ecs_share(surf, 0.25)  # optional, takes a few minutes
-mesh, _ = mesh_surface(surf, envelopsize=10, simplify_eps=3)
+surf, _, share = adjust_ecs_share(surf, 0.3)  # optional, takes a few minutes
+mesh, _ = mesh_surface(surf, envelopsize=8, simplify_eps=3)
 mesh = curve_mesh(mesh, surf)  # optional: curved 10-node tetrahedra
 pv.save_meshio("mesh.xdmf", mesh)
 ```
