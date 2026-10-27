@@ -1,207 +1,126 @@
-import fastremap
 import numpy as np
-import pytetwild
 import pyvista as pv
-
-from emimesh.blocks import merge_surfaces
-from emimesh.download_data import download_cloudvolume
-from emimesh.process_image_data import process_image
+import scipy.sparse as sp
+from imagemesh.image import np2pv
+from imagemesh.simplification import simplify_surface
 from imagemesh.smoothing import (
     bounding_box_mask,
     build_stencils,
     constrained_smooth,
     triangulate_quads,
 )
-from imagemesh.image import np2pv
 from imagemesh.surface import close_quad_holes
-from imagemesh.winding_number import label_points
-from imagemesh.simplification import simplify_surface
 
-path = "precomputed://gs://iarpa_microns/minnie/minnie65/seg_m1300"
-position = (162258, 200928, 20530)
-size = (2000,) * 3
+from emimesh.download_data import download_cloudvolume
+from emimesh.extract_surfaces import prepare_labels
+from emimesh.process_image_data import process_image
+
+# a 1 x 1 x 0.5 µm block of the MICrONS segmentation (position in voxels, size in nm)
+url = "precomputed://gs://iarpa_microns/minnie/minnie65/seg_m1300"
+img, res = download_cloudvolume(
+    url, mip=1, pos=[162258, 200928, 20530], physical_size=[1000, 1000, 500]
+)
+raw = np2pv(img, res)
+
 dx = 20
 ops = [
-    ["removeislands", "minsize=5000"],
-    ["dilate", "radius=1"],
-    ["mode", "iterations=2"],
-    ["smooth", "iterations=1", "radius=1"],
-    ["upsample", "factor=2"],
-    ["mode", "iterations=1"],
-    ["zero_edges"],
-    ["mode", "iterations=1"],
-    ["zero_edges"],
-    # ["erode", "radius=1", "struct_sequence='D'"],
-    # ["mode", "iterations=1"],
-    # ["removeislands", "minsize=5000"],
+    ["smooth", "iterations=1", "radius=2"],
+    ["erode", "radius=1"],
+    ["removeislands", "minsize=150"],  # fragments too small to mesh
 ]
-ncells = 100
-
-img, res = download_cloudvolume(path, 1, position, size)
-img, remap = fastremap.renumber(img)
-imggrid = np2pv(img, res)
-imggrid.save("orig.vti")
-
-(imggrid, combinedmap, cell_labels, cell_counts) = process_image(
-    imggrid, dx=dx, operations=ops, ncells=ncells, num_threads=1
-)
-
-imggrid["data"][imggrid["data"] == 0] = 1
+img, *_ = process_image(raw, dx=dx, operations=ops)  # cells get the labels 2, 3, ...
+imggrid = prepare_labels(img)  # ECS = 1
 
 
-def mark_mesh(mesh, surf):
+def sub_surface(surf, keep, blabels):
+    """Faces keep of surf with the labels blabels, referencing only their own points."""
+    faces = surf.regular_faces[keep]
+    used, faces = np.unique(faces, return_inverse=True)
+    sub = pv.PolyData.from_regular_faces(surf.points[used], faces.reshape(-1, 3))
+    sub.cell_data["boundary_labels"] = blabels
+    return sub
+
+
+def block_surface(surf, top, offset):
     """
-    Mark each tetrahedron with its anatomical label using the winding number of the input surfaces.
-
-    Parameters:
-        mesh: tetrahedralized pyvista.UnstructuredGrid
-        surf: multi-label surface mesh with 'boundary_labels' cell data
+    Closed surface of the top (labels >= offset) or bottom block: the faces
+    touching a label of the block, with the labels of the other block set to
+    0, so the interface on the cut plane becomes the block's cap. Faces are
+    reoriented such that the block's label comes first, as in contour_labels.
     """
-    marker = label_points(
-        surf.points,
-        surf.regular_faces,
-        surf.cell_data["boundary_labels"],
-        mesh.cell_centers().points,
-    )
-    mesh.cell_data["marker"] = marker
-    mesh = mesh.extract_cells(marker > 0)
-    return mesh
-
-
-def block_image(img, k_lo, k_hi):
-    """Sub-image of the voxel layers k_lo <= k < k_hi (cell data)."""
-    nx, ny, nz = np.array(img.dimensions) - 1
-    dz = img.spacing[2]
-    block = pv.ImageData(
-        dimensions=(nx + 1, ny + 1, k_hi - k_lo + 1),
-        spacing=img.spacing,
-        origin=np.array(img.origin) + (0, 0, k_lo * dz),
-    )
-    data = img.cell_data["data"].reshape((nx, ny, nz), order="F")[:, :, k_lo:k_hi]
-    block.cell_data["data"] = data.flatten(order="F")
-    return block
-
-
-def exterior_faces(quads, blabels):
-    """
-    Drop the internal cut-plane caps: quads shared by two neighbouring blocks
-    (same vertex set, appearing twice in the combined quad list) are not part
-    of the whole domain's boundary. Where the labels differ across the cut
-    plane, the two caps (a, 0) and (b, 0) are replaced by the interface
-    (a, b), with the orientation of the first cap (normal from a to b).
-    """
-    key = np.sort(quads, axis=1)
-    _, inv, counts = np.unique(key, axis=0, return_inverse=True, return_counts=True)
-    inv = inv.ravel()
-    keep = counts[inv] == 1
-    shared = np.flatnonzero(~keep)
-    pairs = shared[np.argsort(inv[shared], kind="stable")].reshape(-1, 2)
-    assert np.all(blabels[pairs, 1] == 0), "caps must be (label, background)"
-    inner = blabels[pairs, 0]
-    differ = inner[:, 0] != inner[:, 1]
-    keep[pairs[differ, 0]] = True
-    blabels = blabels.copy()
-    blabels[pairs[differ, 0]] = inner[differ]
-    return quads[keep], blabels[keep]
-
-
-def extract_block(points, quads, blabels):
-    """Triangulated block surface referencing only its own points."""
-    tris = triangulate_quads(points, quads)
-    used, tris = np.unique(tris, return_inverse=True)
-    tris = tris.reshape(-1, 3)
-    block = pv.PolyData(points[used], np.column_stack([np.full(len(tris), 3), tris]).ravel())
-    block.cell_data["boundary_labels"] = np.repeat(blabels, 2, axis=0)
-    return block
-
-
-def extract_plane_boundary(mesh, zc, tol):
-    """Boundary faces of the tet mesh with all vertices within tol of the plane z=zc."""
-    bnd = mesh.extract_surface()
-    z = bnd.points[:, 2][bnd.regular_faces]
-    on_plane = (np.abs(z - zc) <= tol).all(axis=1)
-    return bnd.extract_cells(on_plane).extract_surface()
+    bl = surf.cell_data["boundary_labels"]
+    in_top = bl >= offset
+    in_block = in_top if top else (bl > 0) & ~in_top
+    keep = in_block.any(axis=1)
+    labels = np.where(in_block, bl - offset * top, 0)[keep]
+    sub = sub_surface(surf, keep, labels)
+    swap = labels[:, 0] == 0
+    faces = sub.regular_faces
+    faces[swap] = faces[swap][:, ::-1]
+    sub.faces = pv.PolyData.from_regular_faces(sub.points, faces).faces
+    sub.cell_data["boundary_labels"][swap] = labels[swap][:, ::-1]
+    return sub
 
 
 nx, ny, nz = np.array(imggrid.dimensions) - 1
-gap_start = 95
-gap_end = 105
-
 dz = imggrid.spacing[2]
-z_min = imggrid.bounds[4]
-cut_planes = (z_min + gap_start * dz, z_min + gap_end * dz)
-block_k = {"top": (0, gap_start), "mid": (gap_start, gap_end), "bottom": (gap_end, nz)}
+k_cut = nz // 2
+z_cut = imggrid.origin[2] + k_cut * dz
 
-# 1. Unsmoothed, closed surface nets of the blocks. Each block is padded with
-#    background, so it is closed by a cap on the cut planes; the caps of
-#    neighbouring blocks consist of the same quads (one per voxel column)
-names = list(block_k)
-surfs_raw = [
-    close_quad_holes(
-        block_image(imggrid, *block_k[name]).contour_labels(
-            "all", smoothing=False, output_mesh_type="quads", background_value=0
-        )
-    )
-    for name in names
-]
+# 1. Unsmoothed surface net of the whole image, with the labels of the top
+#    block (k < k_cut) shifted by offset: every voxel face on the cut plane
+#    becomes an interface between the blocks
+data = imggrid.cell_data["data"].reshape((nx, ny, nz), order="F").astype(np.int64)
+# no interface may lie in the cut plane: its points could not leave the plane
+# in the smoothing, leaving a flat step where a surface crosses it. Copying the
+# last layer of the top block into the bottom block moves these interfaces
+# one voxel down
+data[:, :, k_cut] = data[:, :, k_cut - 1]
+offset = data.max() + 1
+data[:, :, :k_cut] += offset
+grid = pv.ImageData(dimensions=imggrid.dimensions, spacing=imggrid.spacing, origin=imggrid.origin)
+grid.cell_data["data"] = data.flatten(order="F")
+surf = close_quad_holes(
+    grid.contour_labels("all", smoothing=False, output_mesh_type="quads", background_value=0)
+)
 
-# 2. Merge the blocks, so that points on the cut planes are shared and move
-#    together. The cut plane quads appear twice; the stencils count them once
-eps = 1e-3 * dz
-points, quads = merge_surfaces(surfs_raw, eps, cut_planes)
-all_quads = np.vstack(quads)
+# 2. Smooth like extract_surface, with the stencils of the surface net without
+#    the offset: the faces on the cut plane with the same label on both sides
+#    (a and a + offset) are no interfaces and must not create junctions; their
+#    points are only smoothed within the plane. Points on the box stay on their
+#    box face, points on the cut plane in the plane. The displacement is
+#    limited to 1.2 * dz (< one voxel), so no vertex can move across it
+quads = surf.regular_faces
+bl = surf.cell_data["boundary_labels"]
+bl = np.where(bl >= offset, bl - offset, bl)
+cap = bl[:, 0] == bl[:, 1]
+on_interface = np.zeros(surf.n_points, dtype=bool)
+on_interface[quads[~cap]] = True
+A = sp.diags(on_interface.astype(float)) @ build_stencils(
+    quads[~cap], surf.n_points, degenerate=None
+)
+A += sp.diags((~on_interface).astype(float)) @ build_stencils(
+    quads[cap], surf.n_points, degenerate=None
+)
+fixed = bounding_box_mask(surf.points)
+fixed[:, 2] |= np.isclose(surf.points[:, 2], z_cut, rtol=0, atol=1e-3 * dz)
+points = constrained_smooth(surf.points, A, distance=1.2 * dz, fixed=fixed)
+labels = surf.cell_data["boundary_labels"]
+surf = pv.PolyData.from_regular_faces(points, triangulate_quads(points, quads))
+surf.cell_data["boundary_labels"] = np.repeat(labels, 2, axis=0)
 
-# 3. Smooth like contour_labels, but keep points on the bounding box on their
-#    box face (block edges are preserved) and points on the cut planes in
-#    their plane. The displacement is limited to smoothing_scale * dz
-#    (< one voxel), so no vertex can move across a cut plane
-smoothing_scale = 1.2
-fixed = bounding_box_mask(points)
-fixed[:, 2] |= np.isclose(points[:, 2][:, None], cut_planes, rtol=0, atol=eps).any(axis=1)
-A = build_stencils(all_quads, len(points))
-points = constrained_smooth(points, A, distance=smoothing_scale * dz, fixed=fixed)
+# 3. Whole domain surface: original labels, faces inside a cell or the ECS dropped
+bl = surf.cell_data["boundary_labels"]
+bl = np.where(bl >= offset, bl - offset, bl)
+keep = bl[:, 0] != bl[:, 1]
+sub_surface(surf, keep, bl[keep]).save("full_surf_smooth.vtk")
 
-# 4. Split into closed, triangulated block surfaces with conforming interfaces
-surfs_smooth = {
-    name: extract_block(points, q, s.cell_data["boundary_labels"])
-    for name, q, s in zip(names, quads, surfs_raw)
-}
-
-# 5. Whole domain smoothed surface (all blocks merged, internal cut-plane
-#    caps removed)
-all_blabels = np.vstack([s.cell_data["boundary_labels"] for s in surfs_raw])
-ext_quads, ext_blabels = exterior_faces(all_quads, all_blabels)
-full_surf_smooth = extract_block(points, ext_quads, ext_blabels)
-full_surf_smooth.save("full_surf_smooth.vtk")
-
-for name in names:
-    surf = surfs_smooth[name]
-    surf.save(f"{name}_surf_smooth.vtk")
-    print(f"start simplifying {name},#points: {surf.n_points} ")
-    surf = simplify_surface(surf, epsilon=dx * 0.05)
-    print(f"finished simplifying {name},#points: {surf.n_points} ")
-    surf.save(f"{name}_surf_dec.vtk")
-
-    twild_defaults = dict(
-        stop_energy=10,
-        loglevel=5,
-        quiet=False,
-        disable_filtering=True,
-        edge_length_fac=0.05,
-        epsilon=1e-3,
-        coarsen=False,
-        num_threads=6,
-    )
-
-    mesh = pytetwild.tetrahedralize_pv(surf, **twild_defaults)
-    mesh = mark_mesh(mesh, surf)
-    mesh.save(f"{name}_mesh.vtk")
-
-    # outer boundary of the tet mesh on the block's cut planes; tetwild only
-    # keeps the input surface within its envelope, epsilon * bbox diagonal
-    tol = twild_defaults["epsilon"] * np.linalg.norm(np.ptp(surf.points, axis=0))
-    k_lo, k_hi = block_k[name]
-    for j, zc in enumerate(cut_planes):
-        if np.isclose(zc, z_min + k_lo * dz) or np.isclose(zc, z_min + k_hi * dz):
-            cut = extract_plane_boundary(mesh, zc, tol)
-            cut.save(f"{name}_cut{j}.vtk")
+# 4. Closed block surfaces. The cut plane vertices are kept in the
+#    simplification, so the caps stay identical
+for name, top in (("top", True), ("bottom", False)):
+    block = block_surface(surf, top, offset)
+    block.save(f"{name}_surf_smooth.vtk")
+    on_cut = np.isclose(block.points[:, 2], z_cut, rtol=0, atol=1e-3 * dz)
+    block = simplify_surface(block, epsilon=dx * 0.05, fixed=on_cut)
+    print(f"{name}: {block.n_points} points after simplification")
+    block.save(f"{name}_surf_dec.vtk")
