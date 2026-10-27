@@ -75,7 +75,8 @@ def process_image(imggrid, dx, operations, ncells=None, num_threads=1):
     cell_labels, cell_counts = fastremap.unique(img, return_counts=True)
     if ncells:
         cell_labels = list(cell_labels[np.argsort(cell_counts)])
-        cell_labels.remove(0)
+        if 0 in cell_labels:
+            cell_labels.remove(0)
         cois = list(cell_labels[-ncells :])
         img = fastremap.mask_except(img, cois)
     else:
