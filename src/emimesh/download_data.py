@@ -22,16 +22,20 @@ def download_webknossos(cloud_path, mip, pos, physical_size):
 
 
 def download_cloudvolume(cloud_path, mip, pos, physical_size):
-    from cloudvolume import CloudVolume
+    from cloudvolume import Bbox, CloudVolume
     vol = CloudVolume(
         cloud_path, use_https=True, parallel=8, progress=True, mip=mip, cache=True, bounded=True
     )
     print(f"data resolution: {vol.resolution}")
-    size = [ps / res for ps, res in zip(physical_size, vol.resolution)]
-    size = np.array(size).astype("uint64")
+    size = np.rint(np.array(physical_size) / vol.resolution).astype(np.int64)
 
     pos = np.array(pos, dtype=np.float32)
     pos[:2] /= 2  # account for different resolution online
 
-    img = vol.download_point(pos, mip=mip, size=size).squeeze()
+    # download_point spans pt +- size//2 and so drops a voxel for odd sizes;
+    # build the bbox ourselves to get exactly `size` voxels
+    center = np.array(vol.point_to_mip(pos, mip=0, to_mip=mip)).astype(np.int64)
+    minpt = center - size // 2
+    bbox = Bbox(minpt, minpt + size)
+    img = vol.download(bbox, mip=mip).squeeze()
     return img, vol.resolution

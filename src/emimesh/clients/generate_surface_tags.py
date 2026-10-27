@@ -1,8 +1,12 @@
 import argparse
 
 import numpy as np
-import pyvista as pv
-from imagemesh.facets import _raw_faces, mark_boundary_facets, mark_interface_facets
+from imagemesh.facets import (
+    _build_facet_polydata,
+    _raw_faces,
+    mark_boundary_facets,
+    mark_interface_facets,
+)
 from imagemesh.io import read_mesh, save_mesh
 
 from emimesh.evaluate_mesh import lstr
@@ -26,7 +30,8 @@ def mark_interfaces(mesh, outer_offset, label_array=lstr):
     """
     Facet mesh (sharing the points of mesh) with cell data 'boundaries': the
     interface between two labels is tagged with the larger label, an outer
-    boundary facet with the label of its tet + outer_offset.
+    boundary facet with the label of its tet + outer_offset. Quadratic tets
+    give quadratic (6-node) facets.
     """
     interfaces = mark_interface_facets(mesh, label_array=label_array)
     boundaries = mark_boundary_facets(mesh, label_array=label_array)
@@ -34,10 +39,7 @@ def mark_interfaces(mesh, outer_offset, label_array=lstr):
     tags = np.concatenate(
         [interfaces["region_b"], np.asarray(boundaries["boundary"]) + outer_offset]
     )
-    cells = np.column_stack([np.full(len(faces), 3), faces]).ravel()
-    facets = pv.PolyData(mesh.points, faces=cells)
-    facets.cell_data["boundaries"] = tags
-    return facets
+    return _build_facet_polydata(mesh, faces, {"boundaries": tags})
 
 
 if __name__ == "__main__":

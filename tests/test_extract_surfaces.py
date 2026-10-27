@@ -89,3 +89,19 @@ def test_mesh_surface(roi):
     assert vols[3] == pytest.approx(cell, rel=0.25)
     box = (16 if roi else 20) * 20 * 20 * DX**3
     assert sum(vols.values()) == pytest.approx(box, rel=1e-3)
+
+
+def test_extract_surface_edge_pinch():
+    """Two boxes of cell 2 that touch only along an edge: surface nets splits
+    the points on the edge, so the surface stays closed and manifold (merged
+    points would give non-manifold edges, locked in the smoothing)."""
+    img = np.zeros((20, 20, 20), dtype=np.uint32)
+    img[4:10, 4:10, 5:15] = 2
+    img[10:16, 10:16, 5:15] = 2
+    surf = extract_surface(np2pv(img, (DX,) * 3))
+    F, L = surf.regular_faces, surf.cell_data["boundary_labels"]
+    edges = np.sort(np.stack([F, np.roll(F, -1, axis=1)], axis=2), axis=2).reshape(-1, 2)
+    for label in (ECS_LABEL, 2):
+        side = np.repeat((L == label).any(axis=1), F.shape[1])
+        _, count = np.unique(edges[side], axis=0, return_counts=True)
+        assert np.all(count == 2)

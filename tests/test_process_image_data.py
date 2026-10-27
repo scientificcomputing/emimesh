@@ -1,8 +1,11 @@
 """Tests for emimesh.process_image_data module."""
+import numpy as np
+import pytest
 from imagemesh.handles import fill_handles
 from imagemesh.pinches import remove_pinches
+from scipy.ndimage import affine_transform
 
-from emimesh.process_image_data import opdict, parse_operations, _parse_to_dict
+from emimesh.process_image_data import opdict, parse_operations, _parse_to_dict, resample_nearest
 
 class TestOperationDictionary:
     """Test the operation dictionary."""
@@ -68,3 +71,38 @@ class TestParseOperations:
         assert result[0][0] == "merge"
         assert result[1][0] == "removeislands"
         assert result[2][0] == "dilate"
+
+
+class TestResampleNearest:
+    """Test nearest-neighbour resampling onto an isotropic grid."""
+
+    @pytest.mark.parametrize("resolution, dx", [
+        ((8, 8, 40), 16),
+        ((8, 8, 40), 20),
+        ((4, 4, 40), 12.5),
+        ((16, 16, 16), 8),
+        ((7.3, 9.1, 33.3), 6),
+    ])
+    @pytest.mark.parametrize("order", ["C", "F"])
+    def test_matches_scipy_affine_transform(self, resolution, dx, order):
+        """Test that the result matches scipy's affine_transform (order=0, voxel centers)."""
+        rng = np.random.default_rng(0)
+        img = np.asarray(rng.integers(0, 50, (37, 41, 29), dtype=np.uint32), order=order)
+
+        scale = np.diag([dx / r for r in resolution] + [1])
+        scale[:3, 3] = 0.5 * np.diag(scale)[:3] - 0.5
+        new_dims = [max(1, round(n * r / dx)) for n, r in zip(img.shape, resolution)]
+        expected = affine_transform(img, scale, output_shape=new_dims, order=0, mode="nearest")
+
+        result = resample_nearest(img, resolution, dx)
+
+        assert result.dtype == img.dtype
+        np.testing.assert_array_equal(result, expected)
+
+    def test_identity(self):
+        """Test that resampling to the original isotropic spacing is a no-op."""
+        img = np.arange(4 * 5 * 6, dtype=np.uint16).reshape(4, 5, 6)
+
+        result = resample_nearest(img, (2, 2, 2), 2)
+
+        np.testing.assert_array_equal(result, img)

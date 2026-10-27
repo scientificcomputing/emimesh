@@ -39,7 +39,8 @@ jobs:
           environment-file: workflow/envs/environment.yml
           activate-environment: emimesh 
           auto-activate-base: false
-          miniforge-version: latest
+          # 26.9.4-0 breaks conda init on Windows (conda-forge/miniforge#913)
+          miniforge-version: 26.7.2-0
           channels: conda-forge,bioconda
           conda-remove-defaults: "true"
           

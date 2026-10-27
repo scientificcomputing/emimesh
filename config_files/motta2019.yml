@@ -11,7 +11,6 @@ processing:
     - "dilate radius=1"
     - "smooth iterations=3 radius=6"
     - "erode radius=3"
-    - "remove_pinches"
 meshing:
   envelopsize : 12
   

@@ -1,4 +1,5 @@
 *.png
+!images/*.png
 __*
 results
 results/
@@ -6,6 +7,7 @@ logs/
 build
 .cache
 *.npy
+*.h5
 *.log
 *.vtk
 *.xdmf
@@ -17,7 +19,8 @@ zipped
 zipped_surf
 .snakemake
 .vscode
-.cache# pixi environments
+
+# pixi environments
 .pixi/*
 !.pixi/config.toml
 pixi.lock

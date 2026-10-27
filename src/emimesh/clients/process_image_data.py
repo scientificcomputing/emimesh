@@ -5,7 +5,6 @@ from pathlib import Path
 import numba
 import numpy as np
 import fastremap
-import dask
 import yaml
 from emimesh.process_image_data import process_image
 
@@ -43,11 +42,11 @@ def main():
         mesh_statistics[k] = np.array(v).tolist()
 
     resdir = Path(args.output).parent
+    resdir.mkdir(parents=True, exist_ok=True)
 
     with open(resdir / "imagestatistic.yml", "w") as mesh_stat_file:
         yaml.dump(mesh_statistics, mesh_stat_file)
 
-    resdir.mkdir(parents=True, exist_ok=True)
     imggrid.save(args.output)
 
 if __name__ == "__main__":

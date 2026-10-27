@@ -32,6 +32,14 @@ ecs_min_width = surface_config.pop("ecs_min_width", None)
 # the optional ECS share adjustment sits between smoothing and meshing
 mesh_input_path = surf_ecs_path if ecs_share is not None else surf_smooth_path
 
+def max_size(size):
+    """largest extent of raw:size, given as 7500, [7500] or "7500-7500-5000" """
+    if isinstance(size, list):
+        return max(max_size(s) for s in size)
+    return max(float(s) for s in str(size).split("-"))
+
+voxels = max_size(config["raw"]["size"]) / config["processing"]["dx"]
+
 size_to_ntasks =  lambda size: min(24, int(1 + (size/100)**2))
 size_to_minutes = lambda size: int((size/500)**3 * 120 + 60)
 
@@ -73,7 +81,7 @@ rule processImageData:
     conda:
         "envs/environment.yml"
     resources:
-        ntasks=lambda wildcards: size_to_ntasks(config["raw"]["size"] / config["processing"]["dx"]),
+        ntasks=lambda wildcards: size_to_ntasks(voxels),
         time=30,
     params:
         options=dict_to_optionsstring(config["processing"])
@@ -92,7 +100,7 @@ rule extractSurfaces:
         surf=surf_smooth_path
     resources:
         time=120,
-        ntasks=lambda wildcards: size_to_ntasks(config["raw"]["size"] / config["processing"]["dx"]),
+        ntasks=lambda wildcards: size_to_ntasks(voxels),
     conda:
         conda_env
     params:
@@ -128,9 +136,9 @@ rule generateMesh:
     conda:
         conda_env
     resources:
-        ntasks=lambda wildcards: size_to_ntasks(config["raw"]["size"] / config["processing"]["dx"]),
-        time=lambda wildcards: size_to_minutes(config["raw"]["size"] / config["processing"]["dx"]),
-    threads: lambda wildcards: size_to_ntasks(config["raw"]["size"] / config["processing"]["dx"]),
+        ntasks=lambda wildcards: size_to_ntasks(voxels),
+        time=lambda wildcards: size_to_minutes(voxels),
+    threads: lambda wildcards: size_to_ntasks(voxels),
     params:
         options=dict_to_optionsstring(config["meshing"])
     shell:
@@ -140,10 +148,9 @@ rule generateMesh:
         {params.options} \
         --output {output.outfile} \
         --surface_output {output.surf} \
-        --max_threads {resources.ntasks}
+        --max_threads {threads}
         """
 
-#   python workflow/scripts/seperate_touching_cells.py --infile {output.outfile} --output {output.outfile}
 
 
 rule evaluateMesh:

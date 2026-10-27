@@ -7,7 +7,6 @@ dependencies:
   - scikit-image
   - meshio
   - h5py
-  - dask-image
   - seaborn
   - numba
   - scipy
@@ -20,5 +19,5 @@ dependencies:
       - connected-components-3d
       - cmocean
       - nbmorph
-      - -e ../../../imagemesh
+      - imagemesh @ git+https://github.com/MariusCausemann/imagemesh
       - -e ../..
