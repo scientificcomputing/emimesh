@@ -53,7 +53,7 @@ def resample_nearest(img, resolution, dx):
     mapping voxel centers to voxel centers (identical to scipy's affine_transform
     with order=0, mode="nearest")."""
     scales = [dx / r for r in resolution]
-    new_dims = [int(n * r / dx) for n, r in zip(img.shape, resolution)]
+    new_dims = [max(1, round(n * r / dx)) for n, r in zip(img.shape, resolution)]
     idx = [np.clip(np.floor(s * np.arange(n) + 0.5 * s), 0, m - 1).astype(np.intp)
            for s, n, m in zip(scales, new_dims, img.shape)]
     if img.flags.f_contiguous and not img.flags.c_contiguous:

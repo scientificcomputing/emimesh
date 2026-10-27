@@ -91,7 +91,7 @@ class TestResampleNearest:
 
         scale = np.diag([dx / r for r in resolution] + [1])
         scale[:3, 3] = 0.5 * np.diag(scale)[:3] - 0.5
-        new_dims = [int(n * r / dx) for n, r in zip(img.shape, resolution)]
+        new_dims = [max(1, round(n * r / dx)) for n, r in zip(img.shape, resolution)]
         expected = affine_transform(img, scale, output_shape=new_dims, order=0, mode="nearest")
 
         result = resample_nearest(img, resolution, dx)
