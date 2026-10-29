@@ -33,7 +33,7 @@ from imagemesh.smoothing import (
     constrained_smooth,
     triangulate_quads,
 )
-from imagemesh.surface import close_quad_holes
+from imagemesh.surface import surface_quads
 
 from emimesh.download_data import download_cloudvolume
 from emimesh.extract_surfaces import prepare_labels
@@ -89,9 +89,7 @@ for a in range(3):
 data = data + blk * offset
 grid = pv.ImageData(dimensions=imggrid.dimensions, spacing=imggrid.spacing, origin=imggrid.origin)
 grid.cell_data["data"] = data.flatten(order="F")
-surf = close_quad_holes(
-    grid.contour_labels("all", smoothing=False, output_mesh_type="quads", background_value=0)
-)
+surf = surface_quads(grid)
 
 # 2. Smooth as split_blocks.py: cap faces (same base label on both sides) are
 #    no interfaces; points on cut planes stay in their planes (on two planes:

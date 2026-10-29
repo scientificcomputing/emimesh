@@ -9,7 +9,7 @@ from imagemesh.smoothing import (
     constrained_smooth,
     triangulate_quads,
 )
-from imagemesh.surface import close_quad_holes
+from imagemesh.surface import surface_quads
 
 from emimesh.download_data import download_cloudvolume
 from emimesh.extract_surfaces import prepare_labels
@@ -80,9 +80,7 @@ offset = data.max() + 1
 data[:, :, :k_cut] += offset
 grid = pv.ImageData(dimensions=imggrid.dimensions, spacing=imggrid.spacing, origin=imggrid.origin)
 grid.cell_data["data"] = data.flatten(order="F")
-surf = close_quad_holes(
-    grid.contour_labels("all", smoothing=False, output_mesh_type="quads", background_value=0)
-)
+surf = surface_quads(grid)
 
 # 2. Smooth like extract_surface, with the stencils of the surface net without
 #    the offset: the faces on the cut plane with the same label on both sides
