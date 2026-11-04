@@ -11,6 +11,7 @@ from imagemesh.morphology import (
     mergecells,
     mode,
     ncells,
+    prune_tips,
     removeislands,
     smooth,
     upsample,
@@ -21,7 +22,7 @@ from imagemesh.pinches import remove_pinches
 opdict ={"merge": mergecells, "smooth":smooth, "dilate":dilate,
          "erode":erode, "removeislands":removeislands, "ncells":ncells, "mode":mode,
          "zero_edges":zero_edges, "upsample":upsample, "remove_pinches":remove_pinches,
-         "fill_handles":fill_handles}
+         "fill_handles":fill_handles, "prune_tips":prune_tips}
 
 def _parse_to_dict(values):
     result = {}

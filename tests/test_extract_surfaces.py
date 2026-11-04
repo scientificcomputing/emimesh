@@ -2,7 +2,7 @@
 
 import numpy as np
 import pytest
-
+import pyvista as pv
 from imagemesh.image import np2pv
 from imagemesh.surface import label_volumes as surface_volumes
 from imagemesh.tetmesh import mesh_surface
@@ -105,3 +105,24 @@ def test_extract_surface_edge_pinch():
         side = np.repeat((L == label).any(axis=1), F.shape[1])
         _, count = np.unique(edges[side], axis=0, return_counts=True)
         assert np.all(count == 2)
+
+
+def test_extract_surface_fair_cli(tmp_path, monkeypatch):
+    """The surface section of a config (method: fair, max_distance: ...) reaches
+    the fairing through emi-extract-surfaces."""
+    from emimesh.clients import extract_surfaces as cli
+
+    infile, outfile = tmp_path / "img.vti", tmp_path / "surf.vtk"
+    two_cells().save(infile)
+    argv = ["emi-extract-surfaces", "--infile", str(infile), "--output", str(outfile)]
+    argv += ["--method", "fair", "--max_distance", "0.5", "--smoothing_iterations", "10"]
+    monkeypatch.setattr("sys.argv", argv)
+    cli.main()
+
+    surf = pv.read(outfile)
+    assert surf.field_data["max_surface_distance"][0] <= 0.5 * DX * (1 + 1e-9)
+    vol = surface_volumes(
+        np.asarray(surf.points), surf.regular_faces, surf["boundary_labels"].astype(np.int64)
+    )
+    for k in (2, 3):
+        assert vol[k] == pytest.approx(600 * DX**3, rel=0.02)
