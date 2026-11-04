@@ -10,6 +10,10 @@ def _float_or_none(v):
     return None if str(v).lower() == "none" else float(v)
 
 
+def _int_or_none(v):
+    return None if str(v).lower() == "none" else int(v)
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Extract the smoothed multi-label surface (surface nets) of a label image."
@@ -24,7 +28,8 @@ def main():
     )
     parser.add_argument(
         "--smoothing_iterations",
-        help="number of smoothing iterations (default: 16 for laplace, 40 for fair)",
+        help="number of smoothing iterations (default: 16 for laplace; fair: 100, or as "
+        "many as influence_radius allows)",
         type=int,
         default=None,
     )
@@ -34,6 +39,13 @@ def main():
         "fair: volume-preserving fairing bounded by the voxel surface",
         choices=["laplace", "fair"],
         default="laplace",
+    )
+    parser.add_argument(
+        "--influence_radius",
+        help="fair: range of influence in voxels: no point depends on a voxel further away "
+        "('none': no limit)",
+        type=_int_or_none,
+        default=None,
     )
     parser.add_argument("--alpha", help="fair: smoothness weight", type=float, default=30.0)
     parser.add_argument(
@@ -62,6 +74,7 @@ def main():
     if args.method == "fair":
         kwargs = dict(
             method="fair",
+            influence_radius=args.influence_radius,
             alpha=args.alpha,
             dead_zone=args.dead_zone,
             max_distance=args.max_distance,

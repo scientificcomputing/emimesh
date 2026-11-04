@@ -55,7 +55,8 @@ meshing:
 | `processing` | **`ncells`** | Keep only the `N` largest cells. |
 | `surface` | **`method`** | `laplace` (default) or `fair`; see [below](#surface-smoothing). |
 | | **`smoothing_scale`** | `laplace`: maximal displacement of the surface points, in voxels (default: 1.2). |
-| | **`smoothing_iterations`** | Number of smoothing iterations (default: 16 for `laplace`, 40 for `fair`). |
+| | **`smoothing_iterations`** | Number of smoothing iterations (default: 16 for `laplace`; 100 for `fair`, or as many as `influence_radius` allows). |
+| | **`influence_radius`** | `fair`: range of influence in voxels: no surface point depends on a voxel further away (default: no limit); see [below](#surface-smoothing). |
 | | **`max_distance`** | `fair`: maximal distance from the voxel surface, in voxels (default: 1). |
 | | **`dead_zone`** | `fair`: free motion along the normal, in voxels (default: 0.5). |
 | | **`alpha`** | `fair`: smoothness weight (default: 30). |
@@ -96,17 +97,22 @@ See `config_files/` for complete examples, e.g. `cappilary1.yml` for an ROI arou
 The surface nets have their points on the voxel corners. `surface: method` selects how they are smoothed:
 
 - `laplace` (default): constrained Laplacian smoothing; each point moves at most `smoothing_scale` voxels. It shrinks thin processes, and points that reach the limit form spikes.
-- `fair`: volume-preserving fairing. It minimizes the squared Laplacian of the surface, lets points move freely along the normal within `dead_zone` voxels, keeps the volume of every cell, and keeps every point within `max_distance` voxels of the voxel surface. The limit is enforced during the iterations, so it creates no spikes. It is slower (about 30 s for 10⁶ faces).
+- `fair`: volume-preserving fairing. It minimizes the squared Laplacian of the surface, lets points move freely along the normal within `dead_zone` voxels, and keeps every point within `max_distance` voxels of the voxel surface; the limit is enforced during the iterations, so it creates no spikes. A second pass restores the volume of every cell locally (the median cell changes by less than 0.1 %, small cells by a few percent). It is local: with `influence_radius: R`, no surface point depends on a voxel more than `R` voxels away (bitwise, independent of the number of threads), so a block cut out of the image gives the same surface as the whole image at points more than `R` voxels from the block's faces (if its voxel coordinates are the same numbers, e.g. integer nm). It takes about 15 s for 10⁶ faces without a limit, and 2–3 s with `influence_radius: 50`–`100`.
 
-Below, a close-up of a cell from a 2 µm cube of the FlyEM male CNS (16 nm voxels, `python images/plot_fairing.py images/fairing.png`), with the volume change of the whole cell. The Laplacian smoothing shrinks the cell by 35 % and leaves spikes; the fairing keeps its volume and has no spikes.
+Below, a close-up of a cell from a 2 µm cube of the FlyEM male CNS (16 nm voxels, `python images/plot_fairing.py images/fairing.png`), with the volume change of the whole cell. The Laplacian smoothing shrinks the cell by 35 % and leaves spikes; the fairing keeps most of its volume (−3.6 % for this small cell) and has no spikes.
 
 <img src='images/fairing.png' width='800'>
 
 ```yaml
 surface:
   method: fair
-  max_distance: 1   # voxels
+  max_distance: 1        # voxels
+  influence_radius: 100  # voxels (optional; default: no limit)
 ```
+
+The same cell faired with different ranges of influence (`python images/plot_fairing_range.py images/fairing_range.png`). Ten voxels leave room for only a few steps; from 50 voxels on, the surface is close to the unlimited one.
+
+<img src='images/fairing_range.png' width='800'>
 
 ### ECS share
 With `surface: ecs_share`, all cell–ECS interfaces are moved by a common offset until the ECS takes that share of the volume. The bounding box is kept, and cells and gaps stay at least `ecs_min_width` thick. Below, the ECS share of a dense crop is lowered from 23 % to 18 % (right: zoomed region, with the voxel grid).
