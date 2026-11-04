@@ -21,6 +21,13 @@ def main():
         type=str,
     )
     parser.add_argument(
+        "--position_resolution",
+        help="voxel size (nm) of --position as x-y-z, i.e. neuroglancer's dimensions \
+              (default: MICrONS explorer, 4-4-40; FlyEM male CNS: 8-8-8)",
+        type=str,
+        default="4-4-40",
+    )
+    parser.add_argument(
         "--size",
         help="cube side length of the volume to be downloaded (in nm)",
         type=str,
@@ -39,7 +46,10 @@ def main():
         size = [int(s) for s in args.size.split("-")]
 
     try:
-        img,res = download_cloudvolume(args.cloudpath, args.mip, position, size)
+        position_resolution = [float(r) for r in args.position_resolution.split("-")]
+        img,res = download_cloudvolume(
+            args.cloudpath, args.mip, position, size, position_resolution=position_resolution
+        )
     except:
         img,res = download_webknossos(args.cloudpath, args.mip, position, size)
         

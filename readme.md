@@ -38,7 +38,8 @@ name : cortical_mm3            # name of the output folder
 raw:
   cloudpath : "precomputed://gs://iarpa_microns/minnie/minnie65/seg"
   mip : 2                      # resolution level (0 = finest)
-  position : "225182-107314-22000"   # center, in voxels of the dataset
+  position : "225182-107314-22000"   # center, in neuroglancer voxels
+  position_resolution : "4-4-40"     # their size in nm (default: MICrONS explorer)
   size : 5000                  # side length in nm, or "x-y-z"
 processing:
   dx : 20                      # isotropic voxel size (nm) for resampling
