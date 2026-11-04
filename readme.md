@@ -26,7 +26,7 @@ snakemake --configfile config_files/cortical_mm3.yml --use-conda --cores 8
 
 - **A. Data download** of the segmentation (cloud-volume or webknossos). Take a look at the [microns explorer gallery](https://www.microns-explorer.org/gallery-mm3), and copy cloudpath and position from the interactive neuroglancer view.
 - **B. Image processing:** resampling and a sequence of morphological [operations](#image-processing-operations) on the labels. These set the rough ECS share, separate the cells and repair topology.
-- **C. Surface extraction:** one multi-label surface of all cells and the ECS, made with surface nets and smoothed. Optionally, the [ECS share](#ecs-share) is fine-tuned on the surface.
+- **C. Surface extraction:** one multi-label surface of all cells and the ECS, made with surface nets and smoothed (Laplacian smoothing or [fairing](#surface-smoothing)). Optionally, the [ECS share](#ecs-share) is fine-tuned on the surface.
 - **D. Tetrahedral mesh:** the surface is simplified and tetrahedralized with [fTetWild](https://github.com/wildmeshing/fTetWild). Optionally, the mesh is [curved](#curved-meshes).
 
 ## Configuration
@@ -53,8 +53,13 @@ meshing:
 | Section | Option | Description |
 | :--- | :--- | :--- |
 | `processing` | **`ncells`** | Keep only the `N` largest cells. |
-| `surface` | **`smoothing_scale`** | Maximal displacement of the surface points during smoothing, in voxels (default: 1.2). |
-| | **`smoothing_iterations`** | Number of smoothing iterations (default: 16). |
+| `surface` | **`method`** | `laplace` (default) or `fair`; see [below](#surface-smoothing). |
+| | **`smoothing_scale`** | `laplace`: maximal displacement of the surface points, in voxels (default: 1.2). |
+| | **`smoothing_iterations`** | Number of smoothing iterations (default: 16 for `laplace`, 40 for `fair`). |
+| | **`max_distance`** | `fair`: maximal distance from the voxel surface, in voxels (default: 1). |
+| | **`dead_zone`** | `fair`: free motion along the normal, in voxels (default: 0.5). |
+| | **`alpha`** | `fair`: smoothness weight (default: 30). |
+| | **`volume`** | `fair`: keep the volume of every cell (default: `true`). |
 | | **`ecs_share`** | Target ECS volume share (0–1); see [below](#ecs-share). |
 | | **`ecs_min_width`** | Minimal thickness of cells and ECS gaps (nm) during the ECS adjustment (default: 10). |
 | `meshing` | **`stopquality`** | fTetWild quality score (default: 10). Higher values stop earlier, giving lower quality. |
@@ -73,6 +78,8 @@ Operations are listed under `processing: operation` as strings of the form `"com
 | **`dilate`** / **`erode`** | `radius`, `labels` | Grow or shrink all cells, or only the listed ones. `erode` also takes `struct_sequence` (default: `B` for `radius=1`, `DDB` otherwise). |
 | **`smooth`** | `radius`, `iterations`, `labels` | Morphological opening and closing. |
 | **`removeislands`** | `minsize` | Remove components smaller than `minsize` voxels. |
+| **`prune_tips`** | `iterations` | Remove voxels with at most one face neighbour of the same cell (one-voxel spikes). One pass by default; `iterations=None` repeats until none is left. |
+| **`remove_pinches`** | | Repair edge and corner contacts between voxels of the same cell. |
 | **`fill_handles`** | `thickness`, `max_loop_length`, `workers` | Close handles (tunnels) of cells with thin membranes. |
 | **`roigenerate`** / **`roiapply`** | `labels` | Create a mask from the listed cells, and later set everything outside it to 0. |
 | **`roi<op>`** | as `<op>` | Apply an operation to the mask, e.g. `roidilate radius=80`. |
@@ -84,6 +91,22 @@ See `config_files/` for complete examples, e.g. `cappilary1.yml` for an ROI arou
 
 <img src='images/handles.png' width='600'>
 
+
+### Surface smoothing
+The surface nets have their points on the voxel corners. `surface: method` selects how they are smoothed:
+
+- `laplace` (default): constrained Laplacian smoothing; each point moves at most `smoothing_scale` voxels. It shrinks thin processes, and points that reach the limit form spikes.
+- `fair`: volume-preserving fairing. It minimizes the squared Laplacian of the surface, lets points move freely along the normal within `dead_zone` voxels, keeps the volume of every cell, and keeps every point within `max_distance` voxels of the voxel surface. The limit is enforced during the iterations, so it creates no spikes. It is slower (about 30 s for 10⁶ faces).
+
+Below, a close-up of a cell from a 2 µm cube of the FlyEM male CNS (16 nm voxels, `python images/plot_fairing.py images/fairing.png`), with the volume change of the whole cell. The Laplacian smoothing shrinks the cell by 35 % and leaves spikes; the fairing keeps its volume and has no spikes.
+
+<img src='images/fairing.png' width='800'>
+
+```yaml
+surface:
+  method: fair
+  max_distance: 1   # voxels
+```
 
 ### ECS share
 With `surface: ecs_share`, all cell–ECS interfaces are moved by a common offset until the ECS takes that share of the volume. The bounding box is kept, and cells and gaps stay at least `ecs_min_width` thick. Below, the ECS share of a dense crop is lowered from 23 % to 18 % (right: zoomed region, with the voxel grid).
@@ -124,7 +147,7 @@ ops = [
     ["removeislands", "minsize=150"],  # fragments too small to mesh
 ]
 img, *_ = process_image(raw, dx=20, operations=ops)  # cells get the labels 2, 3, ...
-surf = extract_surface(img)  # multi-label surface, ECS = 1
+surf = extract_surface(img)  # multi-label surface, ECS = 1; method="fair" for fairing
 surf, _, share = adjust_ecs_share(surf, 0.3)  # optional, takes a few minutes
 mesh, _ = mesh_surface(surf, envelopsize=8, simplify_eps=3)
 mesh = curve_mesh(mesh, surf)  # optional: curved 10-node tetrahedra
