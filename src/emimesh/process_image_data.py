@@ -62,7 +62,25 @@ def resample_nearest(img, resolution, dx):
     return _gather(img, *idx)
 
 
-def process_image(imggrid, dx, operations, ncells=None, num_threads=1):
+def process_image(imggrid, dx, operations, ncells=None, num_threads=1,
+                  keep_ids=False, keep_boundary_islands=False):
+    """
+    Process the label image imggrid (cell data 'data', 0 = background):
+    remap the labels monotonically to 1..N, resample to the isotropic voxel
+    size dx, run the operations (lists [name, "key=value", ...], see opdict)
+    and remap the labels again.
+
+    By default the output labels are 2..M, sorted by voxel count (1 is left
+    for the ECS). keep_ids=True (for windows of a larger image, e.g. tiles):
+    the output labels are the input labels (int64, 0 = background), so
+    overlapping windows agree; raises if a label is 1 (the ECS label).
+    keep_boundary_islands=True passes keep_boundary=True to every
+    removeislands, which then keeps pieces touching the window boundary.
+
+    Returns (image, combinedmap: input label -> output label of the labels
+    left, cell_labels, cell_counts of the processed image: sorted by count,
+    in the output labels with keep_ids, else in the 1..N labels).
+    """
     from imagemesh.image import np2pv
 
     numba.set_num_threads(min(num_threads, numba.config.NUMBA_NUM_THREADS))
@@ -83,8 +101,11 @@ def process_image(imggrid, dx, operations, ncells=None, num_threads=1):
     else:
         cell_labels = list(cell_labels)
         if 0 in cell_labels: cell_labels.remove(0)
+    if keep_ids and (1 in cell_labels or (cell_labels and int(max(cell_labels)) >= 2**63)):
+        raise ValueError("keep_ids: labels must be in 2 .. 2**63 - 1 (1 is the ECS label)")
 
-    # remap labels to smaller, sequential ints
+    # remap labels to smaller, sequential ints (monotone: ties between labels
+    # resolve the same way in overlapping windows)
     remapping = {int(c):i for i,c in enumerate([0] + cell_labels)}
     remap = lambda ids: [remapping[int(i)] for i in ids if i in remapping.keys()]
     img = fastremap.remap(img, remapping)
@@ -108,6 +129,8 @@ def process_image(imggrid, dx, operations, ncells=None, num_threads=1):
                 else:
                     kwargs[k] = remap(labels)
 
+        if keep_boundary_islands and op.endswith("removeislands"):
+            kwargs["keep_boundary"] = True
         if op=="roigenerate":
             roi = np.isin(img, kwargs["labels"])
             continue
@@ -127,6 +150,21 @@ def process_image(imggrid, dx, operations, ncells=None, num_threads=1):
 
     # remap labels to smaller, sequential ints again, since many labels might have disappeared...
     cell_labels, cell_counts = fastremap.unique(img, return_counts=True)
+    if keep_ids:
+        # back to the input labels, by the inverse of the first remapping
+        ids = np.array(list(remapping), np.int64)
+        if len(cell_labels) and cell_labels.max() >= len(ids):
+            raise ValueError("keep_ids: the operations made new labels")
+        img = ids[np.asarray(img, np.intp)]
+        imggrid = np2pv(img, resolution)
+        if roi is not None:
+            imggrid["roimask"] = np.array(roi).flatten(order="F")
+        order = np.argsort(cell_counts, kind="stable")
+        order = order[cell_labels[order] != 0]
+        left = set(cell_labels[order].tolist())
+        combinedmap = {k: k for k, v in remapping.items() if v in left}
+        combinedmap[0] = 0
+        return imggrid, combinedmap, ids[cell_labels[order]].tolist(), cell_counts[order]
     cell_labels = list(cell_labels[np.argsort(cell_counts)])
     if 0 in cell_labels: cell_labels.remove(0)
 
