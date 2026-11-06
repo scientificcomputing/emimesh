@@ -68,3 +68,42 @@ def test_joint_surface_blocks(joint):
     assert grid.n == n and len(blocks) == np.prod(n)
     for ijk, block in blocks.items():
         assert blockwise.surface_problems_block(grid, ijk, block) == [], ijk
+
+
+def rods(seed=0, n=30, shape=(40, 40, 40)):
+    """Thin rods along x that end 1-2 voxels past the cut plane x = 20, some
+    on the box face z = 0: fairing retracts their tips across the plane."""
+    rng = np.random.default_rng(seed)
+    img = np.zeros(shape, np.uint32)
+    for r in range(n):
+        y, z, w = rng.integers(1, shape[1] - 2), rng.integers(0, shape[2] - 2), rng.integers(1, 3)
+        img[20 - rng.integers(3, 12) : 20 + rng.integers(1, 3), y : y + w, z : z + w] = 2 + r
+    return np2pv(img, (DX,) * 3)
+
+
+def outside_block(surf, n=2, cuts=(0.0, 200.0, 400.0)):
+    """Number of faces with a corner outside the box of their block, and the
+    largest distance outside."""
+    P = np.asarray(surf.points)[surf.regular_faces]
+    bl = np.asarray(surf.cell_data["boundary_labels"], np.int64)
+    off = int(surf.field_data["offset"][0])
+    r = (np.where(bl[:, 0] > 0, bl[:, 0], bl[:, 1]) - 1) // off
+    ijk = np.stack([r % n, r // n % n, r // n**2], 1)
+    c = np.asarray(cuts)
+    lo, hi = c[ijk][:, None, :], c[ijk + 1][:, None, :]
+    d = np.maximum(lo - P, P - hi).max(axis=(1, 2))
+    return int((d > 0).sum()), float(d.max())
+
+
+@pytest.mark.parametrize("seed", [0, 2, 3])
+def test_joint_surface_points_in_block(seed):
+    """Regression: fairing slid points of a small piece across a cut plane,
+    out of their block (blockwise_2x2x2_tiles, block (1, 0, 0): 25 nm). The
+    points are clamped into their block, block_margin dx inside."""
+    img = rods(seed)
+    off, _ = outside_block(
+        joint_surface(img, 2, simplify_eps=0, influence_radius=24, block_margin=-np.inf)
+    )
+    assert off > 0  # the case is real without the clamp
+    surf = joint_surface(img, 2, influence_radius=24)
+    assert outside_block(surf) == (0, 0.0)

@@ -55,6 +55,7 @@ def joint_surface(
     grid_n=None,
     core=None,
     fixed_planes=None,
+    block_margin=0.1,
     **fair_kwargs,
 ):
     """
@@ -73,7 +74,10 @@ def joint_surface(
     voxel face on a cut plane is a cap between two blocks. The interfaces
     (without the caps, with the unshifted labels, so they are faired as if
     uncut) are faired with the normal coordinate of every point on a cut
-    plane fixed; the cap points are then relaxed in their planes
+    plane fixed, and every other point is then clamped into its block's box,
+    block_margin dx (default 0.1) inside its planes (fairing can slide a
+    point of a small piece across a cut plane, out of its block); the cap
+    points are then relaxed in their planes
     (cap_iterations Laplacian steps, the interface points fixed), so caps
     stay planar and seam lines straight. The triangulated surface is
     simplified once with simplify_surface (epsilon simplify_eps, default
@@ -202,7 +206,15 @@ def joint_surface(
     sub = pv.PolyData.from_regular_faces(P[used], inv.reshape(-1, 4))
     sub.cell_data["boundary_labels"] = base[~cap]
     faired = fair_surface_net(sub, dx, bounds=grid.bounds, fixed=on_plane[used], **fair_kwargs)
-    P[used] = faired.points
+    # keep every point in its block: the coordinates off the planes clamped to
+    # the cut interval of their voxel corner, block_margin dx inside it
+    X0, X = P[used], np.array(faired.points, np.float64)
+    m = block_margin * dx
+    for a in range(3):
+        free = ~on_plane[used, a]
+        k = np.searchsorted(planes[a], X0[free, a])  # X0 lies strictly inside (k-1, k)
+        X[free, a] = np.clip(X[free, a], planes[a][k - 1] + m, planes[a][k] - m)
+    P[used] = X
 
     # 2. relax the cap points in their planes, the interface points fixed
     fixed = on_plane.copy()
