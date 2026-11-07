@@ -80,7 +80,8 @@ Operations are listed under `processing: operation` as strings of the form `"com
 | **`smooth`** | `radius`, `iterations`, `labels` | Morphological opening and closing. |
 | **`removeislands`** | `minsize` | Remove components smaller than `minsize` voxels. |
 | **`prune_tips`** | `iterations` | Remove voxels with at most one face neighbour of the same cell (one-voxel spikes). One pass by default; `iterations=None` repeats until none is left. |
-| **`remove_pinches`** | | Repair edge and corner contacts between voxels of the same cell. |
+| **`reconnect`** | `s`, `t` | Join the cuts that the operations before it (since the start or the last `reconnect`) made through a cell, up to the length scale `s` (voxels, default 20): a cut is found within a tile of 3`s` voxels, and the cheapest path through the cell's original voxels is restored, thickened by `t` (default 2). Small loops (below about `s`) that an operation cut stay cut. Works on a window of a larger image (same grid, margin about 2.5`s`). |
+| **`remove_pinches`** | `separate_cells` | Repair edge and corner contacts between voxels of the same cell (and of the ECS), so that surface nets gives a manifold surface. A contact is separated where a voxel can be taken without splitting a cell; otherwise a cell grows (preferably not next to another cell) or a voxel is exchanged between cells. Never splits a cell. |
 | **`fill_handles`** | `thickness`, `max_loop_length`, `workers` | Close handles (tunnels) of cells with thin membranes. |
 | **`roigenerate`** / **`roiapply`** | `labels` | Create a mask from the listed cells, and later set everything outside it to 0. |
 | **`roi<op>`** | as `<op>` | Apply an operation to the mask, e.g. `roidilate radius=80`. |

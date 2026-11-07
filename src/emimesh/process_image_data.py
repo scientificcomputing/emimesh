@@ -18,6 +18,7 @@ from imagemesh.morphology import (
     zero_edges,
 )
 from imagemesh.pinches import remove_pinches
+from imagemesh.reconnect import reconnect
 
 opdict ={"merge": mergecells, "smooth":smooth, "dilate":dilate,
          "erode":erode, "removeislands":removeislands, "ncells":ncells, "mode":mode,
@@ -63,7 +64,7 @@ def resample_nearest(img, resolution, dx):
 
 
 def process_image(imggrid, dx, operations, ncells=None, num_threads=1,
-                  keep_ids=False, keep_boundary_islands=False):
+                  keep_ids=False, keep_boundary_islands=False, origin=None):
     """
     Process the label image imggrid (cell data 'data', 0 = background):
     remap the labels monotonically to 1..N, resample to the isotropic voxel
@@ -76,6 +77,13 @@ def process_image(imggrid, dx, operations, ncells=None, num_threads=1,
     overlapping windows agree; raises if a label is 1 (the ECS label).
     keep_boundary_islands=True passes keep_boundary=True to every
     removeislands, which then keeps pieces touching the window boundary.
+
+    The operation reconnect (options s, t, see imagemesh.reconnect) joins
+    the cuts that the operations since the start (or since the last
+    reconnect) made through a cell, up to the length scale s.
+    origin: voxel index of the resampled image's first voxel in the whole
+    image (default: imggrid.origin / dx, rounded), so that remove_pinches and
+    reconnect process a window of a larger image on the whole image's grid.
 
     Returns (image, combinedmap: input label -> output label of the labels
     left, cell_labels, cell_counts of the processed image: sorted by count,
@@ -116,6 +124,10 @@ def process_image(imggrid, dx, operations, ncells=None, num_threads=1,
     print(f"image size: {img.shape}")
     resolution = np.array([dx]*3)
     roi = None
+    if origin is None:
+        origin = np.rint(np.asarray(imggrid.origin, np.float64) / dx)
+    origin = tuple(int(o) for o in origin)
+    ref = img.copy()  # reference of reconnect
 
     # parse user specified operations, and iterate over them:
     operations = parse_operations(operations)
@@ -137,14 +149,21 @@ def process_image(imggrid, dx, operations, ncells=None, num_threads=1,
         if op=="roiapply":
             img = np.where(roi, img, 0) 
             continue
+        if op in ("remove_pinches", "reconnect"):
+            kwargs.setdefault("origin", origin)
         if op.startswith("roi"):
             roiop = op[3:]
             roi = opdict[roiop](roi, **kwargs)
+        elif op=="reconnect":
+            img = reconnect(ref, img, **kwargs)
+            ref = img.copy()
         else:
             img =opdict[op](img, **kwargs)
         if op=="upsample":
             dx /= kwargs["factor"]
             resolution = resolution / float(kwargs["factor"])
+            origin = tuple(o * int(kwargs["factor"]) for o in origin)
+            ref = img.copy()
     
     print(f"processed! {img.shape}")
 

@@ -220,16 +220,25 @@ def test_process_image_keep_ids():
         process_image(grid(img), DX, [o.split() for o in OPS], keep_ids=True)
 
 
-def test_process_image_window():
+RECONNECT_OPS = OPS[:5] + ["reconnect s=6 t=1"] + OPS[5:]
+
+
+@pytest.mark.parametrize(
+    "ops, halo, shape, lo, hi",
+    [
+        (OPS, 16, (64, 60, 56), (10, 4, 20), (50, 40, 56)),
+        (RECONNECT_OPS, 30, (100, 96, 84), (13, 41, 7), (91, 96, 80)),
+    ],
+)
+def test_process_image_window(ops, halo, shape, lo, hi):
     """The operations of the blockwise config on a window agree with the
-    whole image in the window's core (keep_boundary_islands, keep_ids)."""
-    img = cells()
-    ops = [o.split() for o in OPS]
+    whole image in the window's core (keep_boundary_islands, keep_ids); the
+    window's position comes from the grid origin."""
+    img = cells(shape, n=int(60 * np.prod(shape) / (64 * 60 * 56)))
+    ops = [o.split() for o in ops]
     kw = dict(keep_ids=True, keep_boundary_islands=True)
     full = np.asarray(process_image(grid(img), DX, ops, **kw)[0]["data"])
     full = full.reshape(img.shape, order="F")
-    halo = 16
-    lo, hi = (10, 4, 20), (50, 40, 56)
     sub = img[lo[0] : hi[0], lo[1] : hi[1], lo[2] : hi[2]]
     win = np.asarray(process_image(grid(sub, lo), DX, ops, **kw)[0]["data"])
     win = win.reshape(sub.shape, order="F")
