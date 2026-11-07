@@ -13,7 +13,7 @@ class TestOperationDictionary:
     def test_opdict_contains_all_operations(self):
         """Test that opdict contains all expected operations."""
         expected_ops = ["merge", "smooth", "dilate", "erode", "removeislands", "ncells",
-                        "remove_pinches"]
+                        "remove_pinches", "prune_tips"]
         
         for op in expected_ops:
             assert op in opdict
