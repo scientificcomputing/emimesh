@@ -102,8 +102,10 @@ def test_joint_surface_points_in_block(seed):
     points are clamped into their block, block_margin dx inside."""
     img = rods(seed)
     off, _ = outside_block(
-        joint_surface(img, 2, simplify_eps=0, influence_radius=24, block_margin=-np.inf)
+        joint_surface(
+            img, 2, simplify_eps=0, influence_radius=24, block_margin=-np.inf, cap_min_area=None
+        )
     )
-    assert off > 0  # the case is real without the clamp
+    assert off > 0  # the case is real without the clamp (and the cap guard)
     surf = joint_surface(img, 2, influence_radius=24)
     assert outside_block(surf) == (0, 0.0)

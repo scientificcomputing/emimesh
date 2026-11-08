@@ -56,6 +56,7 @@ def joint_surface(
     core=None,
     fixed_planes=None,
     block_margin=0.1,
+    cap_min_area=0.001,
     **fair_kwargs,
 ):
     """
@@ -83,6 +84,11 @@ def joint_surface(
     simplified once with simplify_surface (epsilon simplify_eps, default
     0.05 dx, 0 disables; endpoint placement keeps cap points on their planes
     and seam points on their lines).
+    The caps never fold: fairing and cap relaxation keep every cap quad
+    valid (the diagonal triangulate_quads picks gives two triangles of the
+    cap's orientation, each at least cap_min_area times half a voxel face;
+    a point whose move would break one keeps its position in that step;
+    imagemesh.smoothing.planar_guard). None switches the guard off.
 
     Returns the surface with cell data 'boundary_labels' (shifted labels, 0
     outside) and field data 'offset', 'dx' and the cut layout of
@@ -125,7 +131,12 @@ def joint_surface(
     """
     from imagemesh.fairing import fair_surface_net
     from imagemesh.simplification import simplify_surface
-    from imagemesh.smoothing import build_stencils, constrained_smooth, triangulate_quads
+    from imagemesh.smoothing import (
+        build_stencils,
+        constrained_smooth,
+        planar_guard,
+        triangulate_quads,
+    )
     from imagemesh.surface import surface_quads
 
     from emimesh.extract_surfaces import prepare_labels
@@ -200,12 +211,34 @@ def joint_surface(
             P[on, a] = c
             on_plane[on, a] = True
 
+    # the caps' planes and the smallest area of a cap triangle (guard)
+    cq = quads[cap]
+    if cap_min_area is not None:
+        cax = np.argmax(on_plane[cq].all(axis=1) & (P[cq] == P[cq[:, :1]]).all(axis=1), axis=1)
+        side = spacing[(cax + 1) % 3] * spacing[(cax + 2) % 3]
+        cmin = cap_min_area * 0.5 * side
+
     # 1. fair the interfaces as if uncut: unshifted labels, no caps
     iq = quads[~cap]
     used, inv = np.unique(iq, return_inverse=True)
     sub = pv.PolyData.from_regular_faces(P[used], inv.reshape(-1, 4))
     sub.cell_data["boundary_labels"] = base[~cap]
-    faired = fair_surface_net(sub, dx, bounds=grid.bounds, fixed=on_plane[used], **fair_kwargs)
+    guard = None
+    if cap_min_area is not None and len(cq):
+        # the caps with a seam point (the others don't move in the fairing);
+        # their other corners as fixed extra points
+        loc = np.full(len(P), -1, np.int64)
+        loc[used] = np.arange(len(used))
+        g = (loc[cq] >= 0).any(axis=1)
+        gq = cq[g]
+        ext = np.unique(gq[loc[gq] < 0])
+        eloc = np.full(len(P), -1, np.int64)
+        eloc[ext] = len(used) + np.arange(len(ext))
+        gq = np.where(loc[gq] >= 0, loc[gq], eloc[gq])
+        guard = planar_guard(P[used], gq, cax[g], cmin[g], extra=P[ext])
+    faired = fair_surface_net(
+        sub, dx, bounds=grid.bounds, fixed=on_plane[used], guard=guard, **fair_kwargs
+    )
     # keep every point in its block: the coordinates off the planes clamped to
     # the cut interval of their voxel corner, block_margin dx inside it
     X0, X = P[used], np.array(faired.points, np.float64)
@@ -221,7 +254,10 @@ def joint_surface(
     fixed[used] = True
     if cap_iterations and cap.any():
         A = build_stencils(quads[cap], len(P), degenerate=None)
-        P = constrained_smooth(P, A, iterations=cap_iterations, distance=np.inf, fixed=fixed)
+        guard = None if cap_min_area is None else planar_guard(P, cq, cax, cmin)
+        P = constrained_smooth(
+            P, A, iterations=cap_iterations, distance=np.inf, fixed=fixed, guard=guard
+        )
     tris = triangulate_quads(P, quads)
     tl = np.repeat(bl, 2, axis=0)
 
