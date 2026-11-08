@@ -5,7 +5,7 @@ import pytest
 import pyvista as pv
 from imagemesh.image import np2pv
 
-from emimesh.blocks import joint_surface, merge_surfaces
+from emimesh.blocks import _compact, joint_surface, merge_surfaces
 
 DX = 10.0
 
@@ -109,3 +109,11 @@ def test_joint_surface_points_in_block(seed):
     assert off > 0  # the case is real without the clamp (and the cap guard)
     surf = joint_surface(img, 2, influence_radius=24)
     assert outside_block(surf) == (0, 0.0)
+
+
+def test_compact_matches_unique():
+    idx = np.random.default_rng(0).integers(0, 50, (40, 3)) * 2
+    used, inv = _compact(idx, 120)
+    want_used, want_inv = np.unique(idx, return_inverse=True)
+    np.testing.assert_array_equal(used, want_used)
+    np.testing.assert_array_equal(inv, want_inv.reshape(idx.shape))
