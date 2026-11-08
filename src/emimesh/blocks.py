@@ -23,6 +23,17 @@ def merge_surfaces(surfs, eps, planes):
     return pts[idx], quads
 
 
+def _compact(idx, n):
+    """np.unique(idx, return_inverse=True) for indices in 0..n-1, in O(n):
+    the used indices, ascending, and idx renumbered into them."""
+    mask = np.zeros(n, bool)
+    mask[idx.ravel()] = True
+    used = np.flatnonzero(mask)
+    remap = np.full(n, -1, np.int64)
+    remap[used] = np.arange(len(used))
+    return used, remap[idx]
+
+
 def _cut_indices(cuts, dims):
     """Voxel index of every cut plane per axis, 0 and dims included: cuts is
     the number of blocks (int, or one per axis; equal blocks, rounded) or
@@ -220,8 +231,8 @@ def joint_surface(
 
     # 1. fair the interfaces as if uncut: unshifted labels, no caps
     iq = quads[~cap]
-    used, inv = np.unique(iq, return_inverse=True)
-    sub = pv.PolyData.from_regular_faces(P[used], inv.reshape(-1, 4))
+    used, inv = _compact(iq, len(P))
+    sub = pv.PolyData.from_regular_faces(P[used], inv)
     sub.cell_data["boundary_labels"] = base[~cap]
     guard = None
     if cap_min_area is not None and len(cq):
@@ -271,8 +282,8 @@ def joint_surface(
         turn = tl[:, 0] == 0  # 0 goes second; turn the face around
         tl[turn] = tl[turn][:, ::-1]
         tris[turn] = tris[turn][:, [0, 2, 1]]
-        used, inv = np.unique(tris, return_inverse=True)
-        P, tris = P[used], inv.reshape(-1, 3)
+        used, tris = _compact(tris, len(P))
+        P = P[used]
     out = pv.PolyData.from_regular_faces(P, tris)
     out.cell_data["boundary_labels"] = tl
 
