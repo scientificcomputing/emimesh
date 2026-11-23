@@ -82,6 +82,8 @@ Operations are listed under `processing: operation` as strings of the form `"com
 | **`prune_tips`** | `iterations` | Remove voxels with at most one face neighbour of the same cell (one-voxel spikes). One pass by default; `iterations=None` repeats until none is left. |
 | **`reconnect`** | `s`, `t` | Join the cuts that the operations before it (since the start or the last `reconnect`) made through a cell, up to the length scale `s` (voxels, default 20): a cut is found within a tile of 3`s` voxels, and the cheapest path through the cell's original voxels is restored, thickened by `t` (default 2). Small loops (below about `s`) that an operation cut stay cut. Works on a window of a larger image (same grid, margin about 2.5`s`). |
 | **`remove_pinches`** | `separate_cells` | Repair edge and corner contacts between voxels of the same cell (and of the ECS), so that surface nets gives a manifold surface. A contact is separated where a voxel can be taken without splitting a cell; otherwise a cell grows (preferably not next to another cell) or a voxel is exchanged between cells. Never splits a cell. |
+| **`separate_labels`** | `side`, `connectivity`, `avoid_pinches`, `erode_background`, `detour` | Separate touching cells by ECS where that keeps every cell's topology (nbmorph); contacts where no voxel can be removed are kept. Works on a window of a larger image. |
+| **`separate_cells`** | `workers`, `cell`, `max_rounds` | Remove the remaining contacts between cells (26-neighbourhood) without cutting off, deleting or disconnecting any piece of a cell and without creating pinches, changing as few voxels as possible per contact site (see below). Works on a window of a larger image. |
 | **`fill_handles`** | `thickness`, `max_loop_length`, `workers` | Close handles (tunnels) of cells with thin membranes. |
 | **`roigenerate`** / **`roiapply`** | `labels` | Create a mask from the listed cells, and later set everything outside it to 0. |
 | **`roi<op>`** | as `<op>` | Apply an operation to the mask, e.g. `roidilate radius=80`. |
@@ -93,6 +95,11 @@ See `config_files/` for complete examples, e.g. `cappilary1.yml` for an ROI arou
 
 <img src='images/handles.png' width='600'>
 
+
+### Separating cells
+`separate_labels` (nbmorph) removes most contacts between cells quickly, but only where a voxel can be emptied without changing its cell's topology. `separate_cells` removes the rest: it solves every remaining contact site as a small 0/1 program ([HiGHS](https://highs.dev)). In a box around the site, the voxels within 2 of a contact are free, and each one keeps its cell or becomes ECS; ECS voxels next to a cell may join it. The constraints forbid contacts and pinches and keep every piece of a cell connected; the objective is the number of changed voxels. Below (`python images/plot_separation.py images/separation.png`), two one-voxel processes cross: emptying either contact voxel would cut a process, so cell 2 is routed over cell 1. In the second row, two neurites of the fan-shaped body (FlyEM male CNS, 16 nm voxels, processed as in the script) still touch after `separate_labels`; they are separated with 11 voxels changed. Sites are taken on a lattice fixed in whole-image coordinates, so a block with a halo gets the same result as the whole image; `workers` solves independent sites in parallel.
+
+<img src='images/separation.png' width='800'>
 
 ### Surface smoothing
 The surface nets have their points on the voxel corners. `surface: method` selects how they are smoothed:

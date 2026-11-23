@@ -17,6 +17,7 @@ dependencies = [
     "cmocean",
     "nbmorph>=0.3.2",
     "networkx",
+    "highspy",
     "numba",
     "scipy",
     "vtk>=9.6.0",

@@ -19,6 +19,9 @@ from imagemesh.morphology import (
 )
 from imagemesh.pinches import remove_pinches
 from imagemesh.reconnect import reconnect
+from nbmorph import separate_labels
+
+from emimesh.separate import separate_cells
 
 opdict = {
     "merge": mergecells,
@@ -33,6 +36,8 @@ opdict = {
     "remove_pinches": remove_pinches,
     "fill_handles": fill_handles,
     "prune_tips": prune_tips,
+    "separate_labels": separate_labels,
+    "separate_cells": separate_cells,
 }
 
 
@@ -172,7 +177,7 @@ def process_image(
         if op == "roiapply":
             img = np.where(roi, img, 0)
             continue
-        if op in ("remove_pinches", "reconnect"):
+        if op in ("remove_pinches", "reconnect", "separate_labels", "separate_cells"):
             kwargs.setdefault("origin", origin)
         if op.startswith("roi"):
             roiop = op[3:]
